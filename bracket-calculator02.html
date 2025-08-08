@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>添架物受ブラケットの計算アプリ (添架物2箇所用)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+        }
+        .result-ok {
+            color: #16a34a; /* green-600 */
+            font-weight: bold;
+        }
+        .result-ng {
+            color: #dc2626; /* red-600 */
+            font-weight: bold;
+        }
+        .result-table th, .result-table td {
+            border: 1px solid #e5e7eb; /* gray-200 */
+            padding: 8px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        .result-table th {
+            background-color: #f3f4f6; /* gray-100 */
+        }
+        #bracket-diagram-container {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            background-color: #f9fafb;
+        }
+        
+        /* PDF/画面表示切り替え用スタイル */
+        .pdf-only, .pdf-only-inline, .screen-view-hidden { display: none; }
+        .screen-only { display: inline; }
+
+        /* PDF出力用の縮小スタイル */
+        .pdf-export-scale {
+            font-size: 70%;
+            line-height: 1.2;
+        }
+        .pdf-export-scale .pdf-only, 
+        .pdf-export-scale .pdf-only-inline,
+        .pdf-export-scale .screen-view-hidden { 
+            display: block !important; 
+        }
+        .pdf-export-scale .pdf-only-inline { display: inline !important; }
+        .pdf-export-scale .screen-only { display: none !important; }
+        .pdf-export-scale h3 { font-size: 1.0rem; margin-bottom: 0.5rem; }
+        .pdf-export-scale h4 { font-size: 0.9rem; margin-top: 0.75rem; margin-bottom: 0.25rem; }
+        .pdf-export-scale .result-table th, .pdf-export-scale .result-table td { padding: 6px 4px; vertical-align: middle !important; }
+        .pdf-export-scale .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+            --tw-space-y-reverse: 0;
+            margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+            margin-bottom: calc(1rem * var(--tw-space-y-reverse));
+        }
+        .page-break { page-break-after: always; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">添架物受ブラケット 構造計算アプリ (添架物2箇所用)</h1>
+            <p class="text-gray-600 mt-2">指定された条件に基づき、受材、水平材、取付ボルトの応力度を照査します。</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Input Section -->
+            <div id="input-section" class="bg-white p-6 rounded-lg shadow-md space-y-6">
+                <h2 class="text-2xl font-bold border-b pb-2">1. 設計条件の入力</h2>
+
+                <!-- 断面図 -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700">断面図</h3>
+                    <div id="bracket-diagram-container" class="mx-auto">
+                        <canvas id="bracket-diagram-input" width="450" height="300"></canvas>
+                    </div>
+                </div>
+
+                <!-- 荷重条件 -->
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-3 text-gray-700 border-l-4 border-indigo-400 pl-2">荷重条件1 (P1: 支点側)</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="attachmentName1" class="block text-sm font-medium text-gray-600">添架物名称1</label>
+                                <input type="text" id="attachmentName1" value="水道管φ400" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label for="pipeWeight1" class="block text-sm font-medium text-gray-600">添架物1の重量 (kN/m)</label>
+                                <input type="number" id="pipeWeight1" value="2.10" step="0.01" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold mb-3 text-gray-700 border-l-4 border-teal-400 pl-2">荷重条件2 (P2)</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                             <div>
+                                <label for="attachmentName2" class="block text-sm font-medium text-gray-600">添架物名称2</label>
+                                <input type="text" id="attachmentName2" value="NTT管φ75x3条" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label for="pipeWeight2" class="block text-sm font-medium text-gray-600">添架物2の重量 (kN/m)</label>
+                                <input type="number" id="pipeWeight2" value="0.30" step="0.01" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 許容応力度 -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700">許容応力度</h3>
+                    <div>
+                        <label for="stressIncreaseFactor" class="block text-sm font-medium text-gray-600">許容応力度割増係数</label>
+                        <select id="stressIncreaseFactor" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="1.00">1.00 (長期)</option>
+                            <option value="1.25">1.25</option>
+                            <option value="1.50" selected>1.50 (短期)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 部材情報 -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700">部材情報</h3>
+                    <div class="space-y-4">
+                        <!-- 受材1 -->
+                        <div>
+                            <label for="girderMember1" class="block text-sm font-medium text-gray-600">受材1 (P1用)</label>
+                            <select id="girderMember1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs text-gray-500">
+                                <span>重量: <span id="girderWeight1"></span> kN/m</span>
+                                <span>Aw: <span id="girderAw1"></span> mm²</span>
+                                <span>Zy: <span id="girderZy1"></span> cm³</span>
+                            </div>
+                        </div>
+                        <!-- 受材2 -->
+                         <div>
+                            <label for="girderMember2" class="block text-sm font-medium text-gray-600">受材2 (P2用)</label>
+                            <select id="girderMember2" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs text-gray-500">
+                                <span>重量: <span id="girderWeight2"></span> kN/m</span>
+                                <span>Aw: <span id="girderAw2"></span> mm²</span>
+                                <span>Zy: <span id="girderZy2"></span> cm³</span>
+                            </div>
+                        </div>
+                         <!-- 水平材 -->
+                        <div>
+                            <label for="horizontalMember" class="block text-sm font-medium text-gray-600">水平材</label>
+                            <select id="horizontalMember" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
+                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs text-gray-500">
+                                <span>重量: <span id="horizontalWeight"></span> kN/m</span>
+                                <span>Aw: <span id="horizontalAw"></span> mm²</span>
+                                <span>Zx: <span id="horizontalZx"></span> cm³</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 寸法 -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700">寸法 (mm)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="girderL1" class="block text-sm font-medium text-gray-600">受材 載荷長 L1</label>
+                            <input type="number" id="girderL1" value="2500" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="girderL2" class="block text-sm font-medium text-gray-600">受材 載荷長 L2</label>
+                            <input type="number" id="girderL2" value="2500" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="horizontalOverhang" class="block text-sm font-medium text-gray-600">水平材の張出長 L</label>
+                            <input type="number" id="horizontalOverhang" value="1360" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div></div> <!-- Empty div for spacing -->
+                        <div>
+                            <label for="pipeDistance1" class="block text-sm font-medium text-gray-600">ボルトからP1までの距離 b1</label>
+                            <input type="number" id="pipeDistance1" value="514" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                         <div>
+                            <label for="pipeDistance2" class="block text-sm font-medium text-gray-600">ボルトからP2までの距離 b2</label>
+                            <input type="number" id="pipeDistance2" value="1064" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ボルト情報 -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700">ボルト情報</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="boltType" class="block text-sm font-medium text-gray-600">ボルト種類</label>
+                            <select id="boltType" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
+                        </div>
+                        <div>
+                            <label for="boltSpacing" class="block text-sm font-medium text-gray-600">ボルト間隔 (縦) (mm)</label>
+                            <input type="number" id="boltSpacing" value="150" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="upperBolts" class="block text-sm font-medium text-gray-600">上段ボルト本数</label>
+                            <input type="number" id="upperBolts" value="1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="totalBolts" class="block text-sm font-medium text-gray-600">合計ボルト本数</label>
+                            <input type="number" id="totalBolts" value="2" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 text-center">
+                    <button id="calculateBtn" class="w-full bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105">
+                        計算実行
+                    </button>
+                </div>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result-section-container" class="bg-white p-6 rounded-lg shadow-md hidden">
+                 <div class="flex justify-between items-center border-b pb-2 mb-6">
+                    <h2 class="text-2xl font-bold">計算結果</h2>
+                    <button id="pdfBtn" class="bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
+                        PDF出力
+                    </button>
+                </div>
+                
+                <div id="calculation-output">
+                    <!-- Results will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- データ定義 ---
+        const memberData = {
+            'C-150x75x6.5x10': { name: '溝形鋼 [-150×75×6.5×10', weight: 0.182, Aw_y: 1500, Aw_x: 845, Zx: 115e3, Zy: 22.4e3, t: 6.5, H: 150, B: 75 },
+            'C-150x75x9x12.5': { name: '溝形鋼 [-150×75×9×12.5', weight: 0.235, Aw_y: 1875, Aw_x: 1125, Zx: 140e3, Zy: 28.3e3, t: 9.0, H: 150, B: 75 },
+            'C-180x75x7x10.5': { name: '溝形鋼 [-180×75×7×10.5', weight: 0.210, Aw_y: 1575, Aw_x: 1113, Zx: 153e3, Zy: 24.3e3, t: 7.0, H: 180, B: 75 },
+            'C-200x80x7.5x11': { name: '溝形鋼 [-200×80×7.5×11', weight: 0.241, Aw_y: 1760, Aw_x: 1335, Zx: 195e3, Zy: 29.1e3, t: 7.5, H: 200, B: 80 },
+            'C-200x90x8x13.5': { name: '溝形鋼 [-200×90×8×13.5', weight: 0.297, Aw_y: 2430, Aw_x: 1384, Zx: 249e3, Zy: 44.2e3, t: 8.0, H: 200, B: 90 },
+            'C-250x90x9x13': { name: '溝形鋼 [-250×90×9×13', weight: 0.339, Aw_y: 2340, Aw_x: 2016, Zx: 334e3, Zy: 44.5e3, t: 9.0, H: 250, B: 90 },
+            'C-250x90x11x14.5': { name: '溝形鋼 [-250×90×11×14.5', weight: 0.394, Aw_y: 2610, Aw_x: 2431, Zx: 374e3, Zy: 49.9e3, t: 11.0, H: 250, B: 90 },
+            'C-300x90x9x13': { name: '溝形鋼 [-300×90×9×13', weight: 0.374, Aw_y: 2340, Aw_x: 2466, Zx: 429e3, Zy: 45.7e3, t: 9.0, H: 300, B: 90 },
+            'C-300x90x10x15.5': { name: '溝形鋼 [-300×90×10×15.5', weight: 0.430, Aw_y: 2790, Aw_x: 2690, Zx: 494e3, Zy: 54.1e3, t: 10.0, H: 300, B: 90 },
+            'C-300x90x12x16': { name: '溝形鋼 [-300×90×12×16', weight: 0.477, Aw_y: 2880, Aw_x: 3216, Zx: 525e3, Zy: 56.4e3, t: 12.0, H: 300, B: 90 },
+            'C-380x100x10.5x16': { name: '溝形鋼 [-380×100×10.5×16', weight: 0.534, Aw_y: 3200, Aw_x: 3654, Zx: 763e3, Zy: 70.5e3, t: 10.5, H: 380, B: 100 },
+            'C-380x100x13x20': { name: '溝形鋼 [-380×100×13×20', weight: 0.660, Aw_y: 4000, Aw_x: 4420, Zx: 926e3, Zy: 87.8e3, t: 13.0, H: 380, B: 100 },
+        };
+
+        const boltData = {
+            'M22_F10T': { name: 'M22 (F10T)', d: 22, A: 380.0, tau_pa_base: 190, sigma_pa_base: 235 },
+            'M20_F10T': { name: 'M20 (F10T)', d: 20, A: 314.0, tau_pa_base: 190, sigma_pa_base: 235 },
+            'M16_F10T': { name: 'M16 (F10T)', d: 16, A: 201.0, tau_pa_base: 190, sigma_pa_base: 235 },
+        };
+
+        // --- 初期設定 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const girderSelect1 = document.getElementById('girderMember1');
+            const girderSelect2 = document.getElementById('girderMember2');
+            const horizontalSelect = document.getElementById('horizontalMember');
+            const boltSelect = document.getElementById('boltType');
+
+            // 部材選択肢の生成
+            for (const key in memberData) {
+                girderSelect1.add(new Option(memberData[key].name, key));
+                girderSelect2.add(new Option(memberData[key].name, key));
+                horizontalSelect.add(new Option(memberData[key].name, key));
+            }
+            girderSelect1.value = 'C-380x100x10.5x16';
+            girderSelect2.value = 'C-250x90x9x13';
+            horizontalSelect.value = 'C-250x90x9x13';
+
+            // ボルト選択肢の生成
+            for (const key in boltData) {
+                boltSelect.add(new Option(boltData[key].name, key));
+            }
+            boltSelect.value = 'M22_F10T';
+
+            // 初期値の表示更新
+            updateMemberInfo('girder', 1);
+            updateMemberInfo('girder', 2);
+            updateMemberInfo('horizontal');
+            drawInitialDiagram();
+
+            // イベントリスナーの設定
+            girderSelect1.addEventListener('change', () => updateMemberInfo('girder', 1));
+            girderSelect2.addEventListener('change', () => updateMemberInfo('girder', 2));
+            horizontalSelect.addEventListener('change', () => updateMemberInfo('horizontal'));
+            document.getElementById('calculateBtn').addEventListener('click', performCalculation);
+            document.getElementById('pdfBtn').addEventListener('click', generatePdf);
+            
+            // 寸法入力時に図を更新
+            ['horizontalOverhang', 'pipeDistance1', 'pipeDistance2', 'boltSpacing'].forEach(id => {
+                document.getElementById(id).addEventListener('input', drawInitialDiagram);
+            });
+        });
+
+        // --- UI更新関数 ---
+        function updateMemberInfo(type, index = '') {
+            const selectId = type + 'Member' + index;
+            const memberKey = document.getElementById(selectId).value;
+            const data = memberData[memberKey];
+
+            if (data) {
+                document.getElementById(type + 'Weight' + index).textContent = data.weight.toFixed(3);
+                if (type === 'girder') {
+                    document.getElementById(type + 'Aw' + index).textContent = data.Aw_y;
+                    document.getElementById(type + 'Zy' + index).textContent = (data.Zy / 1000).toFixed(1);
+                } else { // horizontal
+                    document.getElementById(type + 'Aw').textContent = data.Aw_x;
+                    document.getElementById(type + 'Zx').textContent = (data.Zx / 1000).toFixed(1);
+                }
+            }
+            drawInitialDiagram();
+        }
+
+        function getInputs() {
+            return {
+                pipeWeight1: parseFloat(document.getElementById('pipeWeight1').value),
+                pipeWeight2: parseFloat(document.getElementById('pipeWeight2').value),
+                attachmentName1: document.getElementById('attachmentName1').value,
+                attachmentName2: document.getElementById('attachmentName2').value,
+                factor: parseFloat(document.getElementById('stressIncreaseFactor').value),
+                girderKey1: document.getElementById('girderMember1').value,
+                girderKey2: document.getElementById('girderMember2').value,
+                girderL1: parseFloat(document.getElementById('girderL1').value), // mm
+                girderL2: parseFloat(document.getElementById('girderL2').value), // mm
+                horizontalKey: document.getElementById('horizontalMember').value,
+                horizontalL: parseFloat(document.getElementById('horizontalOverhang').value), // mm
+                pipeDist1: parseFloat(document.getElementById('pipeDistance1').value), // mm
+                pipeDist2: parseFloat(document.getElementById('pipeDistance2').value), // mm
+                boltKey: document.getElementById('boltType').value,
+                boltSpacing: parseFloat(document.getElementById('boltSpacing').value), // mm
+                upperBolts: parseInt(document.getElementById('upperBolts').value),
+                totalBolts: parseInt(document.getElementById('totalBolts').value),
+            };
+        }
+
+        // --- 計算実行関数 ---
+        function performCalculation() {
+            const inputs = getInputs();
+            const girder1 = memberData[inputs.girderKey1];
+            const girder2 = memberData[inputs.girderKey2];
+            const horizontal = memberData[inputs.horizontalKey];
+            const bolt = boltData[inputs.boltKey];
+
+            const allowable = {
+                sigma_ba: 140 * inputs.factor, // N/mm2
+                tau_a: 80 * inputs.factor, // N/mm2
+                bolt_tau_pa: bolt.tau_pa_base * inputs.factor, // N/mm2
+                bolt_sigma_pa: bolt.sigma_pa_base * inputs.factor, // N/mm2
+            };
+
+            // 3. 受材1の検討
+            const girderCalc1 = {};
+            girderCalc1.w = inputs.pipeWeight1 + girder1.weight; // kN/m
+            const Lmax = Math.max(inputs.girderL1 / 1000, inputs.girderL2 / 1000); // m
+            girderCalc1.Mmax = girderCalc1.w * Lmax**2 / 8; // kNm
+            girderCalc1.Smax = girderCalc1.w * Lmax / 2; // kN
+            girderCalc1.sigma_b = (girderCalc1.Mmax * 1e6) / girder1.Zy; // N/mm2
+            girderCalc1.tau = (girderCalc1.Smax * 1e3) / girder1.Aw_y; // N/mm2
+            girderCalc1.check_sigma = girderCalc1.sigma_b <= allowable.sigma_ba;
+            girderCalc1.check_tau = girderCalc1.tau <= allowable.tau_a;
+            girderCalc1.R = girderCalc1.w * ((inputs.girderL1 / 1000) + (inputs.girderL2 / 1000)) / 2; // kN
+
+            // 4. 受材2の検討
+            const girderCalc2 = {};
+            girderCalc2.w = inputs.pipeWeight2 + girder2.weight; // kN/m
+            girderCalc2.Mmax = girderCalc2.w * Lmax**2 / 8; // kNm
+            girderCalc2.Smax = girderCalc2.w * Lmax / 2; // kN
+            girderCalc2.sigma_b = (girderCalc2.Mmax * 1e6) / girder2.Zy; // N/mm2
+            girderCalc2.tau = (girderCalc2.Smax * 1e3) / girder2.Aw_y; // N/mm2
+            girderCalc2.check_sigma = girderCalc2.sigma_b <= allowable.sigma_ba;
+            girderCalc2.check_tau = girderCalc2.tau <= allowable.tau_a;
+            girderCalc2.R = girderCalc2.w * ((inputs.girderL1 / 1000) + (inputs.girderL2 / 1000)) / 2; // kN
+
+            // 5. 水平材の検討
+            const horizontalCalc = {};
+            const l_b_ratio = inputs.horizontalL / horizontal.B;
+            horizontalCalc.l_b_ratio = l_b_ratio;
+            horizontalCalc.l_b_error = null;
+            if (l_b_ratio <= 4.5) {
+                horizontalCalc.allowable_sigma_ba = 140 * inputs.factor;
+            } else if (l_b_ratio > 4.5 && l_b_ratio <= 30) {
+                horizontalCalc.allowable_sigma_ba = (140 - 2.4 * (l_b_ratio - 4.5)) * inputs.factor;
+            } else {
+                horizontalCalc.l_b_error = `L/b比が30を超えています (${l_b_ratio.toFixed(2)})。部材サイズまたは張出長を見直してください。`;
+            }
+
+            horizontalCalc.P1 = girderCalc1.R;
+            horizontalCalc.P2 = girderCalc2.R;
+            horizontalCalc.w = horizontal.weight; // kN/m
+            const L_h = inputs.horizontalL / 1000; // m
+            const b1 = inputs.pipeDist1 / 1000; // m
+            const b2 = inputs.pipeDist2 / 1000; // m
+
+            horizontalCalc.Mmax = horizontalCalc.P1 * b1 + horizontalCalc.P2 * b2 + horizontalCalc.w * L_h**2 / 2;
+            horizontalCalc.Smax = horizontalCalc.P1 + horizontalCalc.P2 + horizontalCalc.w * L_h;
+            horizontalCalc.sigma_b = (horizontalCalc.Mmax * 1e6) / horizontal.Zx;
+            horizontalCalc.tau = (horizontalCalc.Smax * 1e3) / horizontal.Aw_x;
+
+            if (horizontalCalc.l_b_error) {
+                horizontalCalc.check_sigma = false;
+            } else {
+                horizontalCalc.check_sigma = horizontalCalc.sigma_b <= horizontalCalc.allowable_sigma_ba;
+            }
+            horizontalCalc.check_tau = horizontalCalc.tau <= allowable.tau_a;
+
+            // 6. 取付ボルトの検討
+            let boltCalc = {};
+            let overallCheck = false;
+            if (!horizontalCalc.l_b_error) {
+                boltCalc.Sm = (horizontalCalc.Mmax / (inputs.boltSpacing/1000));
+                boltCalc.Sv = horizontalCalc.Smax;
+                boltCalc.S1 = boltCalc.Sm / inputs.upperBolts;
+                boltCalc.S2 = boltCalc.Sv / inputs.totalBolts;
+                boltCalc.S_total = boltCalc.S1 + boltCalc.S2;
+                boltCalc.Rs = allowable.bolt_tau_pa * bolt.A / 1000;
+                const t_plate = horizontal.t;
+                boltCalc.Rp = bolt.d * t_plate * allowable.bolt_sigma_pa / 1000;
+                boltCalc.R_allow = Math.min(boltCalc.Rs, boltCalc.Rp);
+                boltCalc.n_required = boltCalc.S_total / boltCalc.R_allow;
+                boltCalc.check_n = boltCalc.n_required <= 1.0;
+                
+                overallCheck = girderCalc1.check_sigma && girderCalc1.check_tau && 
+                               girderCalc2.check_sigma && girderCalc2.check_tau &&
+                               horizontalCalc.check_sigma && horizontalCalc.check_tau && 
+                               boltCalc.check_n;
+            }
+
+            // 7. 結果の表示
+            displayResults({ inputs, girder1, girder2, horizontal, bolt, allowable, girderCalc1, girderCalc2, horizontalCalc, boltCalc, overallCheck });
+        }
+        
+        // --- 結果表示関数 ---
+        function displayResults(data) {
+            const { inputs, girder1, girder2, horizontal, bolt, allowable, girderCalc1, girderCalc2, horizontalCalc, boltCalc, overallCheck } = data;
+            const outputDiv = document.getElementById('calculation-output');
+            
+            const renderCheck = (check) => check ? '<span class="result-ok">OK</span>' : '<span class="result-ng">NG</span>';
+
+            const judgmentText = horizontalCalc.l_b_error
+                ? `総合判定: ${horizontalCalc.l_b_error}`
+                : overallCheck 
+                    ? '総合判定: 全ての検討項目で安全性が確認されました。'
+                    : '総合判定: 一部の項目で許容値を超過しました。各項目を確認してください。';
+            const judgmentClass = overallCheck && !horizontalCalc.l_b_error ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+
+            outputDiv.innerHTML = `
+                <div id="pdf-content" class="space-y-6">
+                    <section id="pdf-page1" class="screen-view-hidden">
+                        <div id="pdf-header" class="hidden pb-4">
+                           <h2 class="text-2xl font-bold">添架物受ブラケット計算結果</h2>
+                           <p class="text-sm text-gray-600">計算日: ${new Date().toLocaleDateString('ja-JP')}</p>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3 text-gray-800 border-l-4 border-indigo-500 pl-3">1. 断面図</h3>
+                        <div class="mx-auto p-4 border rounded-lg bg-gray-50">
+                           <canvas id="bracket-diagram-output" width="450" height="300"></canvas>
+                        </div>
+                        <h3 class="text-xl font-bold mt-6 mb-3 text-gray-800 border-l-4 border-indigo-500 pl-3">2. 設計条件</h3>
+                        <table class="w-full text-sm result-table">
+                            <tr><th class="w-1/3">添架物名称1 (P1)</th><td class="w-1/3">${inputs.attachmentName1}</td><td class="w-1/3">${inputs.pipeWeight1.toFixed(2)} kN/m</td></tr>
+                            <tr><th>添架物名称2 (P2)</th><td>${inputs.attachmentName2}</td><td>${inputs.pipeWeight2.toFixed(2)} kN/m</td></tr>
+                            <tr><th>許容応力度割増係数</th><td>${inputs.factor.toFixed(2)}</td><td>-</td></tr>
+                            <tr><th>受材 載荷長 (L1, L2)</th><td>${inputs.girderL1.toFixed(0)}, ${inputs.girderL2.toFixed(0)}</td><td>mm</td></tr>
+                            <tr><th>水平材の張出長 L</th><td>${inputs.horizontalL.toFixed(0)}</td><td>mm</td></tr>
+                            <tr><th>ボルトからP1までの距離 b1</th><td>${inputs.pipeDist1.toFixed(0)}</td><td>mm</td></tr>
+                            <tr><th>ボルトからP2までの距離 b2</th><td>${inputs.pipeDist2.toFixed(0)}</td><td>mm</td></tr>
+                        </table>
+                    </section>
+
+                    <section id="pdf-page2">
+                        <h3 class="text-xl font-bold mb-3 text-gray-800 border-l-4 border-indigo-500 pl-3">
+                            <span class="screen-only">◆ </span>
+                            <span class="pdf-only-inline">3. </span>
+                            受材1の検討 (${inputs.attachmentName1} / ${girder1.name})
+                        </h3>
+                        <table class="w-full text-sm result-table">
+                            <tr><th>項目</th><th>記号</th><th>計算式</th><th>計算値</th><th>単位</th></tr>
+                            <tr><td>合計荷重</td><td>W1</td><td>${inputs.pipeWeight1.toFixed(2)} + ${girder1.weight.toFixed(3)}</td><td>${girderCalc1.w.toFixed(3)}</td><td>kN/m</td></tr>
+                            <tr><td>最大曲げモーメント</td><td>Mmax</td><td>W1・L²/8</td><td>${girderCalc1.Mmax.toFixed(2)}</td><td>kN·m</td></tr>
+                            <tr><td>最大せん断力</td><td>Smax</td><td>W1・L/2</td><td>${girderCalc1.Smax.toFixed(2)}</td><td>kN</td></tr>
+                            <tr><td class="font-bold">最大反力</td><td class="font-bold">R1</td><td class="font-bold">W1(L1+L2)/2</td><td class="font-bold">${girderCalc1.R.toFixed(2)}</td><td class="font-bold">kN</td></tr>
+                        </table>
+                        <h4 class="text-lg font-semibold mt-4 mb-2">応力度照査 (弱軸)</h4>
+                        <table class="w-full text-sm result-table">
+                             <tr><th>項目</th><th>計算値 (σ, τ)</th><th>許容値 (σa, τa)</th><th>判定</th></tr>
+                             <tr><td>曲げ応力度</td><td>${girderCalc1.sigma_b.toFixed(1)} N/mm²</td><td>${allowable.sigma_ba.toFixed(1)} N/mm²</td><td>${renderCheck(girderCalc1.check_sigma)}</td></tr>
+                             <tr><td>せん断応力度</td><td>${girderCalc1.tau.toFixed(1)} N/mm²</td><td>${allowable.tau_a.toFixed(1)} N/mm²</td><td>${renderCheck(girderCalc1.check_tau)}</td></tr>
+                        </table>
+                        
+                        <h3 class="text-xl font-bold mt-6 mb-3 text-gray-800 border-l-4 border-indigo-500 pl-3">
+                            <span class="screen-only">◆ </span>
+                            <span class="pdf-only-inline">4. </span>
+                            受材2の検討 (${inputs.attachmentName2} / ${girder2.name})
+                        </h3>
+                        <table class="w-full text-sm result-table">
+                            <tr><th>項目</th><th>記号</th><th>計算式</th><th>計算値</th><th>単位</th></tr>
+                            <tr><td>合計荷重</td><td>W2</td><td>${inputs.pipeWeight2.toFixed(2)} + ${girder2.weight.toFixed(3)}</td><td>${girderCalc2.w.toFixed(3)}</td><td>kN/m</td></tr>
+                            <tr><td>最大曲げモーメント</td><td>Mmax</td><td>W2・L²/8</td><td>${girderCalc2.Mmax.toFixed(2)}</td><td>kN·m</td></tr>
+                            <tr><td>最大せん断力</td><td>Smax</td><td>W2・L/2</td><td>${girderCalc2.Smax.toFixed(2)}</td><td>kN</td></tr>
+                            <tr><td class="font-bold">最大反力</td><td class="font-bold">R2</td><td class="font-bold">W2(L1+L2)/2</td><td class="font-bold">${girderCalc2.R.toFixed(2)}</td><td class="font-bold">kN</td></tr>
+                        </table>
+                        <h4 class="text-lg font-semibold mt-4 mb-2">応力度照査 (弱軸)</h4>
+                        <table class="w-full text-sm result-table">
+                             <tr><th>項目</th><th>計算値 (σ, τ)</th><th>許容値 (σa, τa)</th><th>判定</th></tr>
+                             <tr><td>曲げ応力度</td><td>${girderCalc2.sigma_b.toFixed(1)} N/mm²</td><td>${allowable.sigma_ba.toFixed(1)} N/mm²</td><td>${renderCheck(girderCalc2.check_sigma)}</td></tr>
+                             <tr><td>せん단応力度</td><td>${girderCalc2.tau.toFixed(1)} N/mm²</td><td>${allowable.tau_a.toFixed(1)} N/mm²</td><td>${renderCheck(girderCalc2.check_tau)}</td></tr>
+                        </table>
+                    </section>
+
+                    <section id="pdf-page3">
+                        <h3 class="text-xl font-bold mb-3 text-gray-800 border-l-4 border-indigo-500 pl-3">
+                            <span class="screen-only">◆ </span>
+                            <span class="pdf-only-inline">5. </span>
+                            水平材の検討 (${horizontal.name})
+                        </h3>
+                        <table class="w-full text-sm result-table">
+                            <tr><th>項目</th><th>記号</th><th>計算式</th><th>計算値</th><th>単位</th></tr>
+                            <tr><td>作用荷重1 (受材1反力)</td><td>P1</td><td>-</td><td>${horizontalCalc.P1.toFixed(2)}</td><td>kN</td></tr>
+                            <tr><td>作用荷重2 (受材2反力)</td><td>P2</td><td>-</td><td>${horizontalCalc.P2.toFixed(2)}</td><td>kN</td></tr>
+                            <tr><td>最大曲げモーメント</td><td>Mmax</td><td>P1·b1+P2·b2+w·L²/2</td><td>${horizontalCalc.Mmax.toFixed(2)}</td><td>kN·m</td></tr>
+                            <tr><td>最大せん断力</td><td>Smax</td><td>P1+P2+w·L</td><td>${horizontalCalc.Smax.toFixed(2)}</td><td>kN</td></tr>
+                        </table>
+                        <h4 class="text-lg font-semibold mt-4 mb-2">応力度照査 (強軸)</h4>
+                        ${horizontalCalc.l_b_error ? `<div class="mt-4 p-4 rounded-lg text-center text-lg bg-red-100 text-red-800">エラー: ${horizontalCalc.l_b_error}</div>` : `
+                            <table class="w-full text-sm result-table">
+                                <tr><th>項目</th><th>計算値 (σ, τ)</th><th>許容値 (σa, τa)</th><th>判定</th></tr>
+                                <tr>
+                                    <td>曲げ応力度<br><small class="text-gray-500">(L/b = ${horizontalCalc.l_b_ratio.toFixed(2)})</small></td>
+                                    <td>${horizontalCalc.sigma_b.toFixed(1)} N/mm²</td><td>${horizontalCalc.allowable_sigma_ba.toFixed(1)} N/mm²</td><td>${renderCheck(horizontalCalc.check_sigma)}</td>
+                                </tr>
+                                <tr><td>せん断応力度</td><td>${horizontalCalc.tau.toFixed(1)} N/mm²</td><td>${allowable.tau_a.toFixed(1)} N/mm²</td><td>${renderCheck(horizontalCalc.check_tau)}</td></tr>
+                            </table>`}
+                        
+                        <h3 class="text-xl font-bold mt-6 mb-3 text-gray-800 border-l-4 border-indigo-500 pl-3">
+                            <span class="screen-only">◆ </span>
+                            <span class="pdf-only-inline">6. </span>
+                            取付ボルトの検討 (${bolt.name})
+                        </h3>
+                        ${!horizontalCalc.l_b_error ? `
+                            <table class="w-full text-sm result-table">
+                                <tr><th>項目</th><th>記号</th><th>計算式</th><th>計算値</th><th>単位</th></tr>
+                                <tr><td>回転モーメントによるせん断力</td><td>Sm</td><td>Mmax / L_bolt</td><td>${boltCalc.Sm.toFixed(2)}</td><td>kN</td></tr>
+                                <tr><td>上段ボルト1本当りのせん断力</td><td>S1</td><td>Sm / n1</td><td>${boltCalc.S1.toFixed(2)}</td><td>kN</td></tr>
+                                <tr><td>鉛直力によるボルト1本当りのせん断力</td><td>S2</td><td>Smax / n2</td><td>${boltCalc.S2.toFixed(2)}</td><td>kN</td></tr>
+                                <tr><th class="font-bold">ボルト1本当りの合成せん断力</th><th class="font-bold">S_total</th><th class="font-bold">S1 + S2</th><th class="font-bold">${boltCalc.S_total.toFixed(2)}</th><th class="font-bold">kN</th></tr>
+                            </table>
+                            <h4 class="text-lg font-semibold mt-4 mb-2">耐力照査</h4>
+                            <table class="w-full text-sm result-table">
+                                <tr><th>項目</th><th>記号</th><th>計算値</th><th>単位</th></tr>
+                                <tr><td>ボルトの許容せん断耐力</td><td>Rs</td><td>${boltCalc.Rs.toFixed(1)}</td><td>kN</td></tr>
+                                <tr><td>接合材の許容支圧耐力</td><td>Rp</td><td>${boltCalc.Rp.toFixed(1)}</td><td>kN</td></tr>
+                                <tr><th class="font-bold">ボルトの許容耐力 (最小値)</th><th class="font-bold">R_allow</th><th class="font-bold">${boltCalc.R_allow.toFixed(1)}</th><th class="font-bold">kN</th></tr>
+                            </table>
+                            <h4 class="text-lg font-semibold mt-4 mb-2">必要本数の検討</h4>
+                            <table class="w-full text-sm result-table">
+                                <tr><th>項目</th><th>計算式</th><th>計算値</th><th>判定</th></tr>
+                                <tr><td>必要本数</td><td>S_total / R_allow</td><td>${boltCalc.n_required.toFixed(2)} 本</td><td>${`${boltCalc.n_required.toFixed(2)} 本 ≤ 1.0 本 ... ${renderCheck(boltCalc.check_n)}`}</td></tr>
+                            </table>
+                        ` : ''}
+                        <div class="mt-4 p-4 rounded-lg text-center text-lg ${judgmentClass}">
+                            ${judgmentText}
+                        </div>
+                    </section>
+                </div>
+            `;
+            
+            drawDiagram('bracket-diagram-output', inputs);
+            document.getElementById('result-section-container').classList.remove('hidden');
+        }
+
+        function drawInitialDiagram() {
+            const inputs = getInputs();
+            drawDiagram('bracket-diagram-input', inputs);
+        }
+        
+        function drawDiagram(canvasId, inputs) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            const horizontal = memberData[inputs.horizontalKey];
+            
+            const L = inputs.horizontalL;
+            const b1 = inputs.pipeDist1;
+            const b2 = inputs.pipeDist2;
+            const bolt_sp = inputs.boltSpacing;
+            const h_H = horizontal.H;
+
+            const w = canvas.width;
+            const h = canvas.height;
+            const scale = w * 0.7 / L; // Scale based on overhang length
+            const originX = w * 0.15; // Left margin for the support
+            const originY = h * 0.5; // Vertical center
+
+            ctx.clearRect(0, 0, w, h);
+            ctx.font = '12px sans-serif';
+            ctx.strokeStyle = '#374151'; // gray-700
+            ctx.fillStyle = '#374151';
+            ctx.lineWidth = 2;
+
+            // --- 部材描画 (Reversed: Support on Left) ---
+            // 支柱 (Support)
+            ctx.fillStyle = '#d1d5db'; 
+            ctx.fillRect(originX - 20, originY - 125, 20, 250);
+            
+            // 水平材 (Horizontal member)
+            const h_h_scaled = h_H * scale * 0.8;
+            ctx.fillStyle = '#9ca3af'; 
+            ctx.fillRect(originX, originY - h_h_scaled / 2, L * scale, h_h_scaled);
+            
+            // --- 荷重描画 (P1, P2 from left support) ---
+            const drawLoad = (b, label, color) => {
+                const girderX = originX + b * scale; 
+                const g_h_scaled = h_h_scaled / 4;
+                const g_b_scaled = 75 * scale;
+                ctx.fillStyle = '#a1a1aa'; // 受材
+                ctx.fillRect(girderX - g_b_scaled / 2, originY - h_h_scaled/2 - g_h_scaled, g_b_scaled, g_h_scaled);
+
+                const arrow_length = 40;
+                const arrowY_end = originY - h_h_scaled/2 - g_h_scaled;
+                const arrowY_start = arrowY_end - arrow_length;
+                
+                ctx.save();
+                ctx.strokeStyle = color;
+                ctx.fillStyle = color;
+                ctx.lineWidth = 4;
+                
+                ctx.beginPath();
+                ctx.moveTo(girderX, arrowY_start);
+                ctx.lineTo(girderX, arrowY_end);
+                
+                const arrowheadHeight = 15;
+                const arrowheadWidth = 10;
+                ctx.moveTo(girderX, arrowY_end);
+                ctx.lineTo(girderX - arrowheadWidth / 2, arrowY_end - arrowheadHeight);
+                ctx.moveTo(girderX, arrowY_end);
+                ctx.lineTo(girderX + arrowheadWidth / 2, arrowY_end - arrowheadHeight);
+                ctx.stroke();
+                
+                ctx.font = 'bold 16px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, girderX, arrowY_start - 8);
+                ctx.restore();
+            };
+
+            drawLoad(b1, 'P1', '#dc2626'); // red-600
+            drawLoad(b2, 'P2', '#2563eb'); // blue-600
+
+            // ボルト (Bolts at the left support)
+            const boltX = originX;
+            const bolt_sp_scaled = bolt_sp * scale * 0.8;
+            ctx.beginPath();
+            ctx.arc(boltX, originY - bolt_sp_scaled / 2, 3, 0, 2 * Math.PI);
+            ctx.arc(boltX, originY + bolt_sp_scaled / 2, 3, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // --- 寸法線描画 (Reversed) ---
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#6b7280';
+            ctx.fillStyle = '#6b7280';
+            const dimY = originY + h_h_scaled / 2 + 40;
+            const endX = originX + L * scale;
+
+            drawDimensionLine(ctx, originX, dimY, endX, dimY, `L = ${L} mm`);
+            drawDimensionLine(ctx, originX, dimY + 30, originX + b1 * scale, dimY + 30, `b1 = ${b1} mm`);
+            drawDimensionLine(ctx, originX, dimY + 60, originX + b2 * scale, dimY + 60, `b2 = ${b2} mm`);
+            drawDimensionLine(ctx, originX - 40, originY - bolt_sp_scaled / 2, originX - 40, originY + bolt_sp_scaled / 2, `${bolt_sp} mm`, true);
+        }
+
+        function drawDimensionLine(ctx, x1, y1, x2, y2, label, vertical = false) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            // 補助線 (Ticks)
+            const tick = 5;
+            if (vertical) {
+                ctx.moveTo(x1, y1); ctx.lineTo(x1 + tick, y1);
+                ctx.moveTo(x2, y2); ctx.lineTo(x2 + tick, y2);
+            } else {
+                ctx.moveTo(x1, y1); ctx.lineTo(x1, y1 - tick);
+                ctx.moveTo(x2, y2); ctx.lineTo(x2, y2 - tick);
+            }
+            ctx.stroke();
+            // ラベル (Label)
+            ctx.textAlign = 'center';
+            if (vertical) {
+                ctx.save();
+                ctx.translate(x1 - 10, y1 + (y2 - y1) / 2);
+                ctx.rotate(-Math.PI / 2);
+                ctx.fillText(label, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.fillText(label, x1 + (x2 - x1) / 2, y1 - 8);
+            }
+        }
+        
+        // --- PDF生成関数 (3ページ構成) ---
+        async function generatePdf() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const margin = 12;
+
+            const content = document.getElementById('pdf-content');
+            const header = document.getElementById('pdf-header');
+            
+            content.classList.add('pdf-export-scale');
+            header.classList.remove('hidden');
+
+            const pageSections = ['pdf-page1', 'pdf-page2', 'pdf-page3'];
+
+            for (let i = 0; i < pageSections.length; i++) {
+                if (i > 0) pdf.addPage();
+                
+                const section = document.getElementById(pageSections[i]);
+                if(i === 0) { // 1ページ目のみヘッダーを含める
+                    const headerCanvas = await html2canvas(header, { scale: 2 });
+                    const headerImgData = headerCanvas.toDataURL('image/png');
+                    const headerImgProps = pdf.getImageProperties(headerImgData);
+                    const headerImgHeight = (headerImgProps.height * (pdfWidth - margin * 2)) / headerImgProps.width;
+                    pdf.addImage(headerImgData, 'PNG', margin, margin, pdfWidth - margin * 2, headerImgHeight);
+                    
+                    const sectionCanvas = await html2canvas(section, { scale: 2, y: header.offsetHeight });
+                    const sectionImgData = sectionCanvas.toDataURL('image/png');
+                    const sectionImgProps = pdf.getImageProperties(sectionImgData);
+                    const sectionImgHeight = (sectionImgProps.height * (pdfWidth - margin * 2)) / sectionImgProps.width;
+                    pdf.addImage(sectionImgData, 'PNG', margin, margin + headerImgHeight + 5, pdfWidth - margin * 2, sectionImgHeight);
+                } else {
+                    const canvas = await html2canvas(section, { scale: 2 });
+                    const imgData = canvas.toDataURL('image/png');
+                    const imgProps = pdf.getImageProperties(imgData);
+                    const imgHeight = (imgProps.height * (pdfWidth - margin * 2)) / imgProps.width;
+                    pdf.addImage(imgData, 'PNG', margin, margin, pdfWidth - margin * 2, imgHeight);
+                }
+            }
+            
+            content.classList.remove('pdf-export-scale');
+            header.classList.add('hidden');
+
+            pdf.save(`bracket-calculation-2-attachments-${Date.now()}.pdf`);
+        }
+
+    </script>
+</body>
+</html>
