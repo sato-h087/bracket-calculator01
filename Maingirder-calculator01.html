@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主桁影響係数計算アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        /* Custom styles for better UI feedback */
+        input:disabled {
+            background-color: #e9ecef;
+            cursor: not-allowed;
+        }
+        .remove-btn, .details-btn {
+            transition: all 0.2s;
+        }
+        .remove-btn:hover, .details-btn:hover {
+            transform: scale(1.1);
+        }
+        .details-row.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">主桁影響係数計算アプリ</h1>
+            <p class="text-gray-600 mt-2">橋梁の幅員と主桁間隔から、各主桁の死荷重・活荷重影響係数を計算します。</p>
+        </header>
+
+        <!-- Input Section -->
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4 border-b pb-2">入力条件</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Width Input -->
+                <div>
+                    <label for="width" class="block text-sm font-medium text-gray-700 mb-1">1. 幅員 (W)</label>
+                    <input type="number" id="width" min="4" max="20" step="0.001" value="12" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <p class="text-xs text-gray-500 mt-1">4.000m 〜 20.000m の範囲で入力</p>
+                </div>
+                <!-- Distance 'a' Input -->
+                <div>
+                    <label for="distance_a" class="block text-sm font-medium text-gray-700 mb-1">2. 活荷重載荷位置 (a)</label>
+                    <input type="number" id="distance_a" min="0" step="0.001" value="0" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <p class="text-xs text-gray-500 mt-1">左端から5.5m範囲の開始位置まで (幅員が5.5m以下の場合は自動で0になります)</p>
+                </div>
+                <!-- Girder Spacing Input -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">3. 主桁間隔 (左端から)</label>
+                    <div id="girder-spacings" class="space-y-2">
+                        <!-- Dynamic inputs will go here -->
+                    </div>
+                    <button id="add-spacing" class="mt-3 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                        + 間隔を追加
+                    </button>
+                    <p id="width-error" class="text-red-600 font-bold text-sm mt-2 hidden"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Button -->
+        <div class="text-center">
+            <button id="calculate-btn" class="w-full md:w-auto px-12 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 shadow-lg transition-transform transform hover:scale-105">
+                計算実行
+            </button>
+        </div>
+
+        <!-- Output Section -->
+        <div id="output-section" class="hidden mt-8">
+            <div class="flex justify-end mb-4">
+                <button id="pdf-btn" class="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 shadow-md transition-transform transform hover:scale-105">
+                    PDF出力
+                </button>
+            </div>
+            <div id="pdf-content">
+                <!-- Diagram -->
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+                     <h2 class="text-xl font-semibold mb-4 text-gray-900 border-b pb-2">断面図</h2>
+                     <div id="diagram-container" class="w-full overflow-x-auto p-4">
+                        <svg id="diagram" width="100%" height="300"></svg>
+                     </div>
+                </div>
+                <!-- Results Table -->
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-900 border-b pb-2">計算結果</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">主桁</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">死荷重影響係数 (Ad)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">活荷重影響係数 (Al)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 tracking-wider no-pdf">計算過程</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Results rows will go here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const widthInput = document.getElementById('width');
+            const distanceAInput = document.getElementById('distance_a');
+            const spacingsContainer = document.getElementById('girder-spacings');
+            const addSpacingBtn = document.getElementById('add-spacing');
+            const calculateBtn = document.getElementById('calculate-btn');
+            const pdfBtn = document.getElementById('pdf-btn');
+            const widthError = document.getElementById('width-error');
+            const outputSection = document.getElementById('output-section');
+            const diagramSvg = document.getElementById('diagram');
+            const resultsBody = document.getElementById('results-body');
+
+            let spacingCount = 0;
+
+            // --- Initial Setup ---
+            const createSpacingInput = () => {
+                if (spacingCount >= 20) return;
+                spacingCount++;
+                const div = document.createElement('div');
+                div.className = 'flex items-center gap-2';
+                div.innerHTML = `
+                    <select class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="1">1.0m</option>
+                        <option value="2" selected>2.0m</option>
+                        <option value="3">3.0m</option>
+                    </select>
+                    <button type="button" class="remove-btn p-2 text-red-500 hover:text-red-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                    </button>
+                `;
+                spacingsContainer.appendChild(div);
+                div.querySelector('.remove-btn').addEventListener('click', () => {
+                    div.remove();
+                    spacingCount--;
+                });
+            };
+
+            for(let i=0; i<6; i++) {
+                createSpacingInput();
+            }
+
+            // --- Event Listeners ---
+            addSpacingBtn.addEventListener('click', () => {
+                if (spacingCount < 20) {
+                    createSpacingInput();
+                } else {
+                    alert('主桁間隔は最大20までです。');
+                }
+            });
+            widthInput.addEventListener('change', handleWidthChange);
+            calculateBtn.addEventListener('click', calculate);
+            pdfBtn.addEventListener('click', exportToPdf);
+
+            // --- Functions ---
+            function handleWidthChange() {
+                const width = parseFloat(widthInput.value) || 0;
+                distanceAInput.disabled = (width <= 5.5);
+                if (width <= 5.5) {
+                    distanceAInput.value = 0;
+                }
+            }
+            handleWidthChange();
+
+            function calculate() {
+                const totalWidth = parseFloat(widthInput.value);
+                const distanceA = parseFloat(distanceAInput.value);
+                const spacings = Array.from(spacingsContainer.querySelectorAll('select')).map(sel => parseFloat(sel.value));
+                const sumOfSpacings = spacings.reduce((sum, val) => sum + val, 0);
+
+                widthError.classList.add('hidden');
+                if (Math.abs(totalWidth - sumOfSpacings) > 0.001) {
+                    widthError.textContent = `エラー: 主桁間隔の合計 (${sumOfSpacings.toFixed(3)}m) が幅員 (${totalWidth.toFixed(3)}m) と一致しません。`;
+                    widthError.classList.remove('hidden');
+                    outputSection.classList.add('hidden');
+                    return;
+                }
+                 if (!distanceAInput.disabled && distanceA + 5.5 > totalWidth) {
+                    widthError.textContent = `エラー: 距離'a'と活荷重幅(5.5m)の合計が幅員を超えています。`;
+                    widthError.classList.remove('hidden');
+                    outputSection.classList.add('hidden');
+                    return;
+                }
+
+                const girderPositions = [0];
+                let currentPos = 0;
+                spacings.forEach(s => {
+                    currentPos += s;
+                    girderPositions.push(currentPos);
+                });
+                const numGirders = girderPositions.length;
+
+                const results = [];
+                for (let i = 0; i < numGirders; i++) {
+                    let ad_val;
+                    if (i === 0) {
+                        ad_val = spacings[0] / 2;
+                    } else if (i === numGirders - 1) {
+                        ad_val = spacings[i - 1] / 2;
+                    } else {
+                        ad_val = (spacings[i - 1] / 2) + (spacings[i] / 2);
+                    }
+
+                    const primaryStart = distanceA;
+                    const primaryEnd = distanceA + 5.5;
+                    const secondary1Start = 0;
+                    const secondary1End = distanceA;
+                    const secondary2Start = distanceA + 5.5;
+                    const secondary2End = totalWidth;
+
+                    const areaPrimary = getInfluenceAreaInRange(girderPositions, i, primaryStart, primaryEnd);
+                    const areaSecondary1 = getInfluenceAreaInRange(girderPositions, i, secondary1Start, secondary1End);
+                    const areaSecondary2 = getInfluenceAreaInRange(girderPositions, i, secondary2Start, secondary2End);
+                    
+                    const al_val = 1.0 * areaPrimary + 0.5 * (areaSecondary1 + areaSecondary2);
+
+                    const y_start = getInfluenceValue(girderPositions, i, primaryStart);
+                    const y_end = getInfluenceValue(girderPositions, i, primaryEnd);
+
+                    results.push({
+                        girder: String.fromCharCode(65 + i),
+                        Ad: ad_val.toFixed(3),
+                        Al: al_val.toFixed(3),
+                        details: {
+                            areaPrimary: areaPrimary,
+                            areaSecondary1: areaSecondary1,
+                            areaSecondary2: areaSecondary2,
+                            y_start: y_start,
+                            y_end: y_end,
+                            primaryStart: primaryStart,
+                            primaryEnd: primaryEnd,
+                        }
+                    });
+                }
+
+                outputSection.classList.remove('hidden');
+                drawDiagram(totalWidth, girderPositions, distanceA);
+                populateTable(results);
+            }
+
+            function getInfluenceValue(girderPositions, targetGirderIndex, x) {
+                const pos_i = girderPositions[targetGirderIndex];
+                if (Math.abs(x - pos_i) < 1e-9) return 1.0;
+                if (targetGirderIndex > 0) {
+                    const pos_prev = girderPositions[targetGirderIndex - 1];
+                    if (x > pos_prev && x < pos_i) {
+                        return (x - pos_prev) / (pos_i - pos_prev);
+                    }
+                }
+                if (targetGirderIndex < girderPositions.length - 1) {
+                    const pos_next = girderPositions[targetGirderIndex + 1];
+                    if (x > pos_i && x < pos_next) {
+                        return (pos_next - x) / (pos_next - pos_i);
+                    }
+                }
+                return 0;
+            }
+
+            function getInfluenceAreaInRange(girderPositions, targetGirderIndex, rangeStart, rangeEnd) {
+                if (rangeStart >= rangeEnd) return 0;
+                const pos_i = girderPositions[targetGirderIndex];
+                const pos_prev = targetGirderIndex > 0 ? girderPositions[targetGirderIndex - 1] : pos_i;
+                const pos_next = targetGirderIndex < girderPositions.length - 1 ? girderPositions[targetGirderIndex + 1] : pos_i;
+                let totalArea = 0;
+                const leftStart = Math.max(rangeStart, pos_prev);
+                const leftEnd = Math.min(rangeEnd, pos_i);
+                if (leftStart < leftEnd) {
+                    const y1 = getInfluenceValue(girderPositions, targetGirderIndex, leftStart);
+                    const y2 = getInfluenceValue(girderPositions, targetGirderIndex, leftEnd);
+                    totalArea += (y1 + y2) / 2 * (leftEnd - leftStart);
+                }
+                const rightStart = Math.max(rangeStart, pos_i);
+                const rightEnd = Math.min(rangeEnd, pos_next);
+                if (rightStart < rightEnd) {
+                    const y1 = getInfluenceValue(girderPositions, targetGirderIndex, rightStart);
+                    const y2 = getInfluenceValue(girderPositions, targetGirderIndex, rightEnd);
+                    totalArea += (y1 + y2) / 2 * (rightEnd - rightStart);
+                }
+                return totalArea;
+            }
+
+            function drawDiagram(totalWidth, girderPositions, distanceA) {
+                diagramSvg.innerHTML = '';
+                const svgWidth = diagramSvg.clientWidth;
+                if (svgWidth === 0) return;
+                
+                const margin = { top: 20, right: 20, bottom: 50, left: 20 };
+                const p1Height = 60;
+                const p2Height = 30;
+                const dimGap = 36;
+                
+                const effectiveWidth = svgWidth - margin.left - margin.right;
+                const scaleX = effectiveWidth / totalWidth;
+
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('transform', `translate(${margin.left}, 0)`);
+                diagramSvg.appendChild(g);
+
+                const dimY = margin.top;
+                const loadTopY = dimY + dimGap;
+                const deckY = loadTopY + p1Height + 40;
+
+                const p1_start_x = distanceA * scaleX;
+                const p1_end_x = (distanceA + 5.5) * scaleX;
+                const total_width_x = totalWidth * scaleX;
+
+                const loadPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                let d = `M 0 ${loadTopY + p1Height} ` +
+                        `L 0 ${loadTopY + (p1Height - p2Height)} ` +
+                        `L ${p1_start_x} ${loadTopY + (p1Height - p2Height)} ` +
+                        `L ${p1_start_x} ${loadTopY} ` +
+                        `L ${p1_end_x} ${loadTopY} ` +
+                        `L ${p1_end_x} ${loadTopY + (p1Height - p2Height)} ` +
+                        `L ${total_width_x} ${loadTopY + (p1Height - p2Height)} ` +
+                        `L ${total_width_x} ${loadTopY + p1Height} ` +
+                        `Z`;
+                loadPath.setAttribute('d', d);
+                loadPath.setAttribute('fill', 'rgba(255, 165, 0, 0.5)');
+                loadPath.setAttribute('stroke', 'rgba(255, 165, 0, 1)');
+                g.appendChild(loadPath);
+                
+                const createDimLine = (startX, endX, y, label) => {
+                    if (Math.abs(endX - startX) < 1) return;
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', `M ${startX} ${y+5} V ${y-5} M ${startX} ${y} H ${endX} M ${endX} ${y+5} V ${y-5}`);
+                    path.setAttribute('stroke', '#333');
+                    path.setAttribute('stroke-width', '1');
+                    g.appendChild(path);
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', (startX + endX) / 2);
+                    text.setAttribute('y', y - 8);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '12px');
+                    text.textContent = label;
+                    g.appendChild(text);
+                };
+
+                if (distanceA > 0.0001) {
+                    createDimLine(0, p1_start_x, dimY, `${distanceA.toFixed(3)}m`);
+                }
+                if (totalWidth >= 5.5) {
+                    createDimLine(p1_start_x, p1_end_x, dimY, '5.500m');
+                }
+                const remainder = totalWidth - distanceA - 5.5;
+                if (remainder > 0.0001) {
+                    createDimLine(p1_end_x, total_width_x, dimY, `${remainder.toFixed(3)}m`);
+                }
+
+                const deck = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                deck.setAttribute('x', 0);
+                deck.setAttribute('y', deckY);
+                deck.setAttribute('width', effectiveWidth);
+                deck.setAttribute('height', 10);
+                deck.setAttribute('fill', '#9ca3af');
+                g.appendChild(deck);
+
+                girderPositions.forEach((pos, i) => {
+                    const x = pos * scaleX;
+                    const girder = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    girder.setAttribute('d', `M ${x} ${deckY + 10} L ${x - 8} ${deckY + 25} L ${x + 8} ${deckY + 25} Z`);
+                    girder.setAttribute('fill', '#4b5563');
+                    g.appendChild(girder);
+                    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    label.setAttribute('x', x);
+                    label.setAttribute('y', deckY + 45);
+                    label.setAttribute('text-anchor', 'middle');
+                    label.setAttribute('font-weight', 'bold');
+                    label.textContent = String.fromCharCode(65 + i);
+                    g.appendChild(label);
+                });
+
+                const spacingDimY = deckY + 65;
+                let currentX = 0;
+                const spacings = girderPositions.slice(1).map((p, i) => p - girderPositions[i]);
+                spacings.forEach(sp => {
+                    const startX = currentX * scaleX;
+                    const endX = (currentX + sp) * scaleX;
+                    createDimLine(startX, endX, spacingDimY, `${sp.toFixed(1)}m`);
+                    currentX += sp;
+                });
+            }
+
+            function populateTable(results) {
+                resultsBody.innerHTML = '';
+                results.forEach(res => {
+                    const row = document.createElement('tr');
+                    row.className = "border-b";
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${res.girder}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${res.Ad}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${res.Al}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-center no-pdf">
+                            <button class="details-btn px-3 py-1 bg-blue-500 text-white text-xs font-semibold rounded-md hover:bg-blue-600">
+                                詳細
+                            </button>
+                        </td>
+                    `;
+                    
+                    const detailsRow = document.createElement('tr');
+                    detailsRow.className = "details-row hidden bg-blue-50";
+                    
+                    let boundaryHeightsHTML = '';
+                    // Check if there is a boundary between secondary area 1 and primary area
+                    if (res.details.areaSecondary1 > 1e-5 && res.details.areaPrimary > 1e-5) {
+                        boundaryHeightsHTML += `<p>・主載荷/副載荷 境界(左)の高さ: y(x=${res.details.primaryStart.toFixed(3)}) = ${res.details.y_start.toFixed(3)}</p>`;
+                    }
+                    // Check if there is a boundary between primary area and secondary area 2
+                    if (res.details.areaSecondary2 > 1e-5 && res.details.areaPrimary > 1e-5) {
+                        boundaryHeightsHTML += `<p>・主載荷/副載荷 境界(右)の高さ: y(x=${res.details.primaryEnd.toFixed(3)}) = ${res.details.y_end.toFixed(3)}</p>`;
+                    }
+
+                    if (boundaryHeightsHTML) {
+                        boundaryHeightsHTML = `<div class="mt-2 pt-2 border-t">
+                            <h5 class="font-semibold">影響線の高さ</h5>
+                            ${boundaryHeightsHTML}
+                        </div>`;
+                    }
+
+                    detailsRow.innerHTML = `
+                        <td colspan="4" class="px-8 py-4 text-sm text-gray-700">
+                            <h4 class="font-bold">主桁 ${res.girder} の活荷重影響係数 (Al) の計算過程</h4>
+                            <div class="font-mono text-xs mt-2 p-3 bg-white rounded-md border">
+                                <p>Al = 1.0 * (主載荷面積) + 0.5 * (副載荷面積1 + 副載荷面積2)</p>
+                                <p class="mt-2">主載荷面積 (5.5m範囲): ${res.details.areaPrimary.toFixed(4)}</p>
+                                <p>副載荷面積1 (左側): ${res.details.areaSecondary1.toFixed(4)}</p>
+                                <p>副載荷面積2 (右側): ${res.details.areaSecondary2.toFixed(4)}</p>
+                                ${boundaryHeightsHTML}
+                                <p class="mt-2 border-t pt-2">
+                                    => 1.0 * ${res.details.areaPrimary.toFixed(4)} + 0.5 * (${res.details.areaSecondary1.toFixed(4)} + ${res.details.areaSecondary2.toFixed(4)}) = <b class="text-blue-700">${res.Al}</b>
+                                </p>
+                            </div>
+                        </td>
+                    `;
+                    
+                    resultsBody.appendChild(row);
+                    resultsBody.appendChild(detailsRow);
+
+                    row.querySelector('.details-btn').addEventListener('click', (e) => {
+                        e.currentTarget.parentElement.parentElement.nextElementSibling.classList.toggle('hidden');
+                    });
+                });
+            }
+
+            function exportToPdf() {
+                const { jsPDF } = window.jspdf;
+                const content = document.getElementById('pdf-content');
+                
+                const noPdfElements = content.querySelectorAll('.no-pdf');
+                const detailsRows = content.querySelectorAll('.details-row');
+                detailsRows.forEach(row => row.classList.add('hidden'));
+                noPdfElements.forEach(el => el.style.display = 'none');
+
+                html2canvas(content, {
+                    scale: 2,
+                    useCORS: true 
+                }).then(canvas => {
+                    noPdfElements.forEach(el => el.style.display = '');
+
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const imgProps= pdf.getImageProperties(imgData);
+                    
+                    const pdfMargin = 10;
+                    const pdfWidth = pdf.internal.pageSize.getWidth() - (pdfMargin * 2);
+                    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                    
+                    pdf.addImage(imgData, 'PNG', pdfMargin, pdfMargin, pdfWidth, pdfHeight);
+                    pdf.save('主桁影響係数計算結果.pdf');
+                }).catch(err => {
+                    console.error("PDF export failed:", err);
+                    noPdfElements.forEach(el => el.style.display = '');
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>
