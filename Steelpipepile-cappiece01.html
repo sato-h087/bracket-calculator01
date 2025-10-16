@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鋼管杭 杭頭ピース 応力度照査アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .result-ok {
+            color: #16a34a; /* green-600 */
+        }
+        .result-ng {
+            color: #dc2626; /* red-600 */
+        }
+        .label-text {
+            color: #4b5563; /* gray-600 */
+        }
+        .unit-text {
+            color: #6b7280; /* gray-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <div class="bg-white rounded-2xl shadow-lg">
+            <!-- Header -->
+            <div class="bg-slate-800 text-white p-6 rounded-t-2xl">
+                <h1 class="text-2xl md:text-3xl font-bold">鋼管杭 杭頭ピース 応力度照査アプリ</h1>
+                <p class="mt-2 text-slate-300">入力値を変更すると、計算結果が自動的に更新されます。</p>
+            </div>
+
+            <div class="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Input Section -->
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-gray-800 border-b pb-2">入力条件</h2>
+                    
+                    <!-- General Inputs -->
+                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                        <h3 class="font-semibold text-gray-700">共通項目</h3>
+                        <div>
+                            <label for="horizontalLoad" class="block text-sm font-medium label-text">水平荷重 (H)</label>
+                            <div class="mt-1 flex items-center">
+                                <input type="number" id="horizontalLoad" value="85.2" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <span class="ml-3 unit-text">kN</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="allowableIncrease" class="block text-sm font-medium label-text">許容応力度割増係数</label>
+                            <div class="mt-1">
+                                <input type="number" id="allowableIncrease" value="1.50" step="0.01" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div class="mt-2 flex space-x-2">
+                                <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.00</button>
+                                <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.25</button>
+                                <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.50</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rib to Top Plate Weld -->
+                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                         <h3 class="font-semibold text-gray-700">リブプレートとトッププレートの隅肉溶接</h3>
+                        <div>
+                            <label for="legLength1" class="block text-sm font-medium label-text">脚長</label>
+                            <div class="mt-1 flex items-center">
+                                <input type="number" id="legLength1" value="6" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <span class="ml-3 unit-text">mm</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="weldLength1" class="block text-sm font-medium label-text">溶接長</label>
+                            <div class="mt-1 flex items-center">
+                                <input type="number" id="weldLength1" value="80" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <span class="ml-3 unit-text">mm</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="ribCount" class="block text-sm font-medium label-text">リブプレート枚数</label>
+                            <div class="mt-1 flex items-center">
+                                <input type="number" id="ribCount" value="4" step="1" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <span class="ml-3 unit-text">枚</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rib to Pile Weld -->
+                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
+                        <h3 class="font-semibold text-gray-700">リブプレートと鋼管杭の隅肉溶接（現場溶接）</h3>
+                        <div>
+                            <label for="legLength2" class="block text-sm font-medium label-text">脚長</label>
+                            <div class="mt-1 flex items-center">
+                                <input type="number" id="legLength2" value="6" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <span class="ml-3 unit-text">mm</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="weldLength2" class="block text-sm font-medium label-text">溶接長</label>
+                             <div class="mt-1 flex items-center">
+                                <input type="number" id="weldLength2" value="180" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <span class="ml-3 unit-text">mm</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Result Section -->
+                <div class="space-y-6">
+                    <h2 class="text-xl font-bold text-gray-800 border-b pb-2">計算結果</h2>
+                    
+                    <!-- General Results -->
+                    <div class="space-y-2 p-4 bg-blue-50 rounded-lg">
+                        <h3 class="font-semibold text-blue-800">共通計算値</h3>
+                        <div class="flex justify-between items-center">
+                            <span class="label-text">リブプレート1枚への作用力 (P)</span>
+                            <span id="forcePerRib" class="font-bold text-lg text-blue-900"></span>
+                        </div>
+                    </div>
+
+                    <!-- Rib to Top Plate Weld Results -->
+                    <div class="space-y-2 p-4 border-2 rounded-lg" id="resultCard1">
+                        <h3 class="font-semibold text-gray-700">リブプレートとトッププレート溶接の照査</h3>
+                        <div class="flex justify-between items-center">
+                            <span class="label-text">発生応力度 (τ)</span>
+                            <span id="stress1" class="font-mono text-gray-800"></span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="label-text">許容応力度 (τa)</span>
+                            <span id="allowableStress1" class="font-mono text-gray-800"></span>
+                        </div>
+                        <div class="text-center pt-2 mt-2 border-t">
+                            <span id="result1" class="font-bold text-2xl"></span>
+                        </div>
+                    </div>
+
+                    <!-- Rib to Pile Weld Results -->
+                    <div class="space-y-2 p-4 border-2 rounded-lg" id="resultCard2">
+                        <h3 class="font-semibold text-gray-700">リブプレートと鋼管杭溶接の照査</h3>
+                        <div class="flex justify-between items-center">
+                            <span class="label-text">発生応力度 (τ)</span>
+                            <span id="stress2" class="font-mono text-gray-800"></span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="label-text">許容応力度 (τa)</span>
+                            <span id="allowableStress2" class="font-mono text-gray-800"></span>
+                        </div>
+                        <div class="text-center pt-2 mt-2 border-t">
+                            <span id="result2" class="font-bold text-2xl"></span>
+                        </div>
+                    </div>
+
+                    <!-- Calculation details for verification -->
+                    <details class="p-4 bg-gray-50 rounded-lg">
+                        <summary class="font-medium text-gray-600 cursor-pointer">詳細な計算値（確認用）</summary>
+                        <div class="mt-4 space-y-2 text-sm text-gray-500">
+                             <p>リブプレートと鋼管杭溶接：</p>
+                             <div class="flex justify-between pl-4"><span>溶接部断面積 (A)</span><span id="area2"></span></div>
+                             <div class="flex justify-between pl-4"><span>溶接部断面係数 (Z)</span><span id="sectionModulus2"></span></div>
+                             <div class="flex justify-between pl-4"><span>モーメントアーム</span><span id="momentArm2"></span></div>
+                             <div class="flex justify-between pl-4"><span>曲げモーメント (M)</span><span id="moment2"></span></div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+             <!-- Footer -->
+            <div class="bg-gray-50 text-center p-4 rounded-b-2xl border-t">
+                <p class="text-xs text-gray-500">この計算は提供された資料に基づいていますが、最終的な設計・施工の判断は、関連法規や基準に基づき、専門の技術者が行ってください。</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const inputs = {
+            H: document.getElementById('horizontalLoad'),
+            increaseFactor: document.getElementById('allowableIncrease'),
+            s1: document.getElementById('legLength1'),
+            L1: document.getElementById('weldLength1'),
+            n: document.getElementById('ribCount'),
+            s2: document.getElementById('legLength2'),
+            L2: document.getElementById('weldLength2'),
+        };
+
+        const outputs = {
+            forcePerRib: document.getElementById('forcePerRib'),
+            stress1: document.getElementById('stress1'),
+            allowableStress1: document.getElementById('allowableStress1'),
+            result1: document.getElementById('result1'),
+            resultCard1: document.getElementById('resultCard1'),
+            stress2: document.getElementById('stress2'),
+            allowableStress2: document.getElementById('allowableStress2'),
+            result2: document.getElementById('result2'),
+            resultCard2: document.getElementById('resultCard2'),
+            area2: document.getElementById('area2'),
+            sectionModulus2: document.getElementById('sectionModulus2'),
+            momentArm2: document.getElementById('momentArm2'),
+            moment2: document.getElementById('moment2'),
+        };
+
+        // Calculation Function
+        function calculate() {
+            // Get values from inputs, ensuring they are numbers
+            const H = parseFloat(inputs.H.value) || 0;
+            const increaseFactor = parseFloat(inputs.increaseFactor.value) || 0;
+            const s1 = parseFloat(inputs.s1.value) || 0;
+            const L1 = parseFloat(inputs.L1.value) || 0;
+            const n = parseInt(inputs.n.value) || 0;
+            const s2 = parseFloat(inputs.s2.value) || 0;
+            const L2 = parseFloat(inputs.L2.value) || 0;
+
+            // --- 1. Common Calculations ---
+            const P_kN = n > 0 ? H / n : 0;
+            const P_N = P_kN * 1000;
+            outputs.forcePerRib.textContent = `${P_kN.toFixed(2)} kN`;
+
+            const tau_a = 80 * increaseFactor;
+            outputs.allowableStress1.textContent = `${tau_a.toFixed(1)} N/mm²`;
+            outputs.allowableStress2.textContent = `${tau_a.toFixed(1)} N/mm²`;
+
+
+            // --- 2. Rib to Top Plate Weld Check ---
+            const denominator1 = 2 * 0.7 * s1 * L1;
+            const tau1 = denominator1 > 0 ? P_N / denominator1 : 0;
+            outputs.stress1.textContent = `${tau1.toFixed(1)} N/mm²`;
+
+            const isOk1 = tau1 <= tau_a;
+            outputs.result1.textContent = isOk1 ? "OK" : "NG";
+            outputs.result1.className = isOk1 ? "font-bold text-2xl result-ok" : "font-bold text-2xl result-ng";
+            outputs.resultCard1.className = isOk1 ? "space-y-2 p-4 border-2 border-green-500 rounded-lg" : "space-y-2 p-4 border-2 border-red-500 rounded-lg";
+            
+            // --- 3. Rib to Pile Weld Check ---
+            const A = 2 * 0.7 * s2 * L2;
+            const Z = (2 * 0.7 * s2 * L2 * L2) / 6;
+            const momentArm = (L2 / 2) + 20; // モーメントアームをご要望の計算式に変更
+            const M = P_N * momentArm;
+
+            const stress_comp_shear = A > 0 ? P_N / A : 0;
+            const stress_comp_bending = Z > 0 ? M / Z : 0;
+
+            const tau2 = (stress_comp_shear + stress_comp_bending) / 0.8;
+            outputs.stress2.textContent = `${tau2.toFixed(1)} N/mm²`;
+
+            // Display detailed values
+            outputs.area2.textContent = `${A.toFixed(0)} mm²`;
+            outputs.sectionModulus2.textContent = `${Z.toFixed(0)} mm³`;
+            outputs.momentArm2.textContent = `${momentArm.toFixed(1)} mm`;
+            outputs.moment2.textContent = `${(M/1e6).toFixed(3)} kN·m`;
+
+
+            const isOk2 = tau2 <= tau_a;
+            outputs.result2.textContent = isOk2 ? "OK" : "NG";
+            outputs.result2.className = isOk2 ? "font-bold text-2xl result-ok" : "font-bold text-2xl result-ng";
+            outputs.resultCard2.className = isOk2 ? "space-y-2 p-4 border-2 border-green-500 rounded-lg" : "space-y-2 p-4 border-2 border-red-500 rounded-lg";
+        }
+
+        // Event Listeners
+        Object.values(inputs).forEach(input => {
+            input.addEventListener('input', calculate);
+        });
+
+        const presetBtns = document.querySelectorAll('.preset-btn');
+        presetBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                inputs.increaseFactor.value = btn.textContent;
+                calculate();
+            });
+        });
+
+        // Initial Calculation on Load
+        document.addEventListener('DOMContentLoaded', calculate);
+
+    </script>
+</body>
+</html>
+
