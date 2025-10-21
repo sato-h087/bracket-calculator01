@@ -55,6 +55,19 @@
             border: 1px solid #d1d5db;
             margin-right: 0.5rem;
         }
+        .input-custom {
+             margin-top: 0.25rem;
+             display: block;
+             width: 100%;
+             border-color: #d1d5db;
+             border-radius: 0.375rem;
+             box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        }
+        .input-custom:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 1px #4f46e5;
+        }
+
     </style>
 </head>
 <body class="bg-gray-100 p-4 sm:p-6 lg:p-8">
@@ -66,7 +79,7 @@
         </header>
 
         <div class="card">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
                 <div>
                     <label for="factor-select" class="block text-lg font-medium text-gray-700">許容応力度割増係数</label>
                     <select id="factor-select" class="mt-2 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
@@ -92,6 +105,23 @@
                         </label>
                      </div>
                 </div>
+                <div class="md:col-span-2">
+                    <h3 class="text-lg font-medium text-gray-700 mb-2">有効座屈長 (m)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="lk-gentai" class="block text-sm font-medium text-gray-600">弦材</label>
+                            <input type="number" id="lk-gentai" value="3.0" step="0.1" class="input-custom">
+                        </div>
+                        <div>
+                            <label for="lk-hokyo1" class="block text-sm font-medium text-gray-600">弦材補強 (標準)</label>
+                            <input type="number" id="lk-hokyo1" value="1.5" step="0.1" class="input-custom">
+                        </div>
+                        <div>
+                            <label for="lk-hokyo2" class="block text-sm font-medium text-gray-600">弦材補強 (特殊)</label>
+                            <input type="number" id="lk-hokyo2" value="1.5" step="0.1" class="input-custom">
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -105,6 +135,15 @@
         const useSpecialReinforcementCheck = document.getElementById('use-special-reinforcement');
         const useSpecialSplicePlateCheck = document.getElementById('use-special-splice-plate');
         const useKmt3tDiagonalCheck = document.getElementById('use-kmt3t-diagonal');
+        const lkGentaiInput = document.getElementById('lk-gentai');
+        const lkHokyo1Input = document.getElementById('lk-hokyo1');
+        const lkHokyo2Input = document.getElementById('lk-hokyo2');
+
+        function getSigmaCa(lambda) {
+            if (lambda <= 15) return 210.0;
+            const sigma = 210.0 - 1.5 * (lambda - 15);
+            return Math.max(0, sigma); // 負の値を返さない
+        }
 
         function calculateAndDisplay() {
             const factor = parseFloat(factorSelect.value);
@@ -112,83 +151,78 @@
             const useSpecialSplicePlate = useSpecialSplicePlateCheck.checked;
             const useKmt3tDiagonal = useKmt3tDiagonalCheck.checked;
             const isSpecialE3V = useSpecialReinforcement || useSpecialSplicePlate;
+            const lk_gentai_m = parseFloat(lkGentaiInput.value);
+            const lk_hokyo1_m = parseFloat(lkHokyo1Input.value);
+            const lk_hokyo2_m = parseFloat(lkHokyo2Input.value);
             
             const hokyo1Label = useSpecialReinforcement ? '1(標準)' : '';
             const tenseiban1Label = useSpecialSplicePlate ? '1(標準)' : '';
 
-            // --- 基礎値の計算 ---
             const constants = {
-                // 弦材 (H-200x200x8x12)
-                gentai: { An: 4899, A: 6353, sigma_ca_base: 0.143 },
-                // 弦材補強1 (標準, 2-CT-100x200x8x12)
-                gentaiHokyo1: { An: 2450, A: 3177, sigma_ca_base: 0.139 },
-                // 弦材補強2 (特殊, 2-CT-100x200x12x12)
-                gentaiHokyo2: { An: 2729, A: 3456, sigma_ca_base: 0.150 },
-                // 斜材 (H-200x150x8x9)
+                gentai: { An: 4899, A: 6353, iy_cm: 5.02 },
+                gentaiHokyo1: { An: 2450, A: 3177, ix_cm: 2.41 },
+                gentaiHokyo2: { An: 2729, A: 3456, ix_cm: 2.71 },
                 shazai: { A: 4156, sigma_ca_base: 0.133 },
-                // 斜材 (KMT-3T, H-200x150x9x12)
                 shazai_kmt3t: { A: 5184, sigma_ca_base: 0.136 },
-                // 添接板1 (標準, 2-PL-200x16)
                 tenseiban1: { An: 4461 },
-                // 添接板2 (特殊, 2-PL-210x16)
                 tenseiban2: { An: 4781 },
-                // 添接部ボルト (B10T d=30.0)
                 bolt: { d: 30.0, t_min: 12.0, n: 8 }
             };
 
             const baseForces = {};
-            // 弦材
+            
             baseForces.gentai_Nta = 0.210 * constants.gentai.An * factor;
-            baseForces.gentai_Nca = constants.gentai.sigma_ca_base * constants.gentai.A * factor;
-            // 弦材補強1 (標準)
             baseForces.gentaiHokyo1_Nta = 0.210 * constants.gentaiHokyo1.An * 2 * factor;
-            baseForces.gentaiHokyo1_Nca = constants.gentaiHokyo1.sigma_ca_base * constants.gentaiHokyo1.A * 2 * factor;
-            // 弦材補強2 (特殊)
             baseForces.gentaiHokyo2_Nta = 0.210 * constants.gentaiHokyo2.An * 2 * factor;
-            baseForces.gentaiHokyo2_Nca = constants.gentaiHokyo2.sigma_ca_base * constants.gentaiHokyo2.A * 2 * factor;
-            // 斜材 (標準)
             baseForces.shazai_Nta = 0.210 * constants.shazai.A * factor;
-            baseForces.shazai_Nca = constants.shazai.sigma_ca_base * constants.shazai.A * factor;
-            // 斜材 (KMT-3T)
             baseForces.shazai_kmt3t_Nta = 0.210 * constants.shazai_kmt3t.A * factor;
-            baseForces.shazai_kmt3t_Nca = constants.shazai_kmt3t.sigma_ca_base * constants.shazai_kmt3t.A * factor;
-            // 添接板1 (標準)
             baseForces.tenseiban1_NBt = 0.210 * constants.tenseiban1.An * factor;
-            // 添接板2 (特殊)
             baseForces.tenseiban2_NBt = 0.210 * constants.tenseiban2.An * factor;
-            // 添接部ボルト許容力
+
+            const lambda_gentai = (lk_gentai_m * 100) / constants.gentai.iy_cm;
+            const sigma_ca_gentai = getSigmaCa(lambda_gentai);
+            baseForces.gentai_Nca = (sigma_ca_gentai * constants.gentai.A) / 1000 * factor;
+            
+            const lambda_hokyo1 = (lk_hokyo1_m * 100) / constants.gentaiHokyo1.ix_cm;
+            const sigma_ca_hokyo1 = getSigmaCa(lambda_hokyo1);
+            baseForces.gentaiHokyo1_Nca = (sigma_ca_hokyo1 * constants.gentaiHokyo1.A) / 1000 * 2 * factor;
+
+            const lambda_hokyo2 = (lk_hokyo2_m * 100) / constants.gentaiHokyo2.ix_cm;
+            const sigma_ca_hokyo2 = getSigmaCa(lambda_hokyo2);
+            baseForces.gentaiHokyo2_Nca = (sigma_ca_hokyo2 * constants.gentaiHokyo2.A) / 1000 * 2 * factor;
+            
+            baseForces.shazai_Nca = constants.shazai.sigma_ca_base * constants.shazai.A * factor;
+            baseForces.shazai_kmt3t_Nca = constants.shazai_kmt3t.sigma_ca_base * constants.shazai_kmt3t.A * factor;
+            
             const sigma_pa = 355 * factor;
             const Rp = constants.bolt.d * constants.bolt.t_min * sigma_pa;
-            const Sa = Rp / 1000;
-            baseForces.tenseiban_Nca = constants.bolt.n * Sa;
+            baseForces.tenseiban_Nca = (constants.bolt.n * (Rp / 1000));
             
-            // --- 弦材タイプ別許容軸力の計算 ---
+            // --- タイプ別許容軸力の計算 (最小値ルールを適用) ---
+            const min_comp_E1_E2_E3 = Math.min(baseForces.gentai_Nca, baseForces.tenseiban_Nca);
+            let min_comp_name_E1_E2_E3 = (min_comp_E1_E2_E3 === baseForces.gentai_Nca) ? '弦材の許容圧縮力' : '添接板の許容圧縮力';
+
+            const min_comp_E1V_E3V = Math.min(baseForces.gentai_Nca, baseForces.gentaiHokyo1_Nca, baseForces.tenseiban_Nca);
+            let min_comp_name_E1V_E3V = '';
+            if (min_comp_E1V_E3V === baseForces.gentai_Nca) min_comp_name_E1V_E3V = '弦材の許容圧縮力';
+            else if (min_comp_E1V_E3V === baseForces.gentaiHokyo1_Nca) min_comp_name_E1V_E3V = `弦材補強${hokyo1Label}の許容圧縮力`;
+            else min_comp_name_E1V_E3V = '添接板の許容圧縮力';
+
             const chordTable = {};
-            chordTable.E1 = { tension: baseForces.tenseiban1_NBt * 1, compression: baseForces.gentai_Nca * 1 };
-            chordTable.E1V = { tension: baseForces.tenseiban1_NBt * 2, compression: baseForces.gentaiHokyo1_Nca * 2 };
-            chordTable.E2 = { tension: baseForces.tenseiban1_NBt * 2, compression: baseForces.gentai_Nca * 2 };
-            chordTable.E3 = { tension: baseForces.tenseiban1_NBt * 3, compression: baseForces.gentai_Nca * 3 };
-            chordTable.E3V = { tension: baseForces.tenseiban1_NBt * 4, compression: baseForces.gentaiHokyo1_Nca * 4 };
+            chordTable.E1 = { tension: baseForces.tenseiban1_NBt, compression: min_comp_E1_E2_E3 * 1, compression_base_name: min_comp_name_E1_E2_E3, compression_base_value: min_comp_E1_E2_E3 };
+            chordTable.E1V = { tension: baseForces.tenseiban1_NBt * 2, compression: min_comp_E1V_E3V * 2, compression_base_name: min_comp_name_E1V_E3V, compression_base_value: min_comp_E1V_E3V };
+            chordTable.E2 = { tension: baseForces.tenseiban1_NBt * 2, compression: min_comp_E1_E2_E3 * 2, compression_base_name: min_comp_name_E1_E2_E3, compression_base_value: min_comp_E1_E2_E3 };
+            chordTable.E3 = { tension: baseForces.tenseiban1_NBt * 3, compression: min_comp_E1_E2_E3 * 3, compression_base_name: min_comp_name_E1_E2_E3, compression_base_value: min_comp_E1_E2_E3 };
+            chordTable.E3V = { tension: baseForces.tenseiban1_NBt * 4, compression: min_comp_E1V_E3V * 4, compression_base_name: min_comp_name_E1V_E3V, compression_base_value: min_comp_E1V_E3V };
 
             let e3vSpecialResult = null;
             if (isSpecialE3V) {
-                // E3V特
                 const tensionCandidates = [baseForces.gentai_Nta];
                 const compressionCandidates = [baseForces.gentai_Nca, baseForces.tenseiban_Nca];
                 
-                if(useSpecialReinforcement) {
-                    tensionCandidates.push(baseForces.gentaiHokyo2_Nta);
-                    compressionCandidates.push(baseForces.gentaiHokyo2_Nca);
-                } else {
-                    tensionCandidates.push(baseForces.gentaiHokyo1_Nta);
-                    compressionCandidates.push(baseForces.gentaiHokyo1_Nca);
-                }
-                
-                if(useSpecialSplicePlate) {
-                    tensionCandidates.push(baseForces.tenseiban2_NBt);
-                } else {
-                    tensionCandidates.push(baseForces.tenseiban1_NBt);
-                }
+                tensionCandidates.push(useSpecialReinforcement ? baseForces.gentaiHokyo2_Nta : baseForces.gentaiHokyo1_Nta);
+                compressionCandidates.push(useSpecialReinforcement ? baseForces.gentaiHokyo2_Nca : baseForces.gentaiHokyo1_Nca);
+                tensionCandidates.push(useSpecialSplicePlate ? baseForces.tenseiban2_NBt : baseForces.tenseiban1_NBt);
                 
                 const minTension = Math.min(...tensionCandidates);
                 const minCompression = Math.min(...compressionCandidates);
@@ -207,35 +241,27 @@
                 else if (minCompression === baseForces.gentaiHokyo2_Nca) compressionExplanationText = '弦材補強2(特殊)の許容圧縮力';
                 
                 e3vSpecialResult = {
-                    tension: minTension * 4,
-                    compression: minCompression * 4,
-                    minTension: minTension,
-                    minCompression: minCompression,
-                    tensionExplanation: tensionExplanationText,
-                    compressionExplanation: compressionExplanationText
+                    tension: minTension * 4, compression: minCompression * 4,
+                    minTension: minTension, minCompression: minCompression,
+                    tensionExplanation: tensionExplanationText, compressionExplanation: compressionExplanationText
                 };
             }
 
-            // --- 斜材タイプ別許容軸力の計算 ---
-            const diagonalTable = {};
-            diagonalTable.E1 = { tension: baseForces.shazai_Nta * 1, compression: baseForces.shazai_Nca * 1 };
-            diagonalTable.E2 = { tension: baseForces.shazai_Nta * 2, compression: baseForces.shazai_Nca * 2 };
-            
+            const diagonalTable = { E1: { tension: baseForces.shazai_Nta, compression: baseForces.shazai_Nca }, E2: { tension: baseForces.shazai_Nta * 2, compression: baseForces.shazai_Nca * 2 } };
             let diagonalKmt3tTable = null;
             if (useKmt3tDiagonal) {
-                 diagonalKmt3tTable = {};
-                 diagonalKmt3tTable.E1 = { tension: baseForces.shazai_kmt3t_Nta * 1, compression: baseForces.shazai_kmt3t_Nca * 1 };
-                 diagonalKmt3tTable.E2 = { tension: baseForces.shazai_kmt3t_Nta * 2, compression: baseForces.shazai_kmt3t_Nca * 2 };
+                 diagonalKmt3tTable = { E1: { tension: baseForces.shazai_kmt3t_Nta, compression: baseForces.shazai_kmt3t_Nca }, E2: { tension: baseForces.shazai_kmt3t_Nta * 2, compression: baseForces.shazai_kmt3t_Nca * 2 } };
             }
             
-            // --- HTMLの生成と表示 ---
-            displayResults(chordTable, diagonalTable, diagonalKmt3tTable, baseForces, e3vSpecialResult, isSpecialE3V, useKmt3tDiagonal);
+            displayResults(chordTable, diagonalTable, diagonalKmt3tTable, baseForces, e3vSpecialResult);
         }
         
-        function displayResults(chordTable, diagonalTable, diagonalKmt3tTable, baseForces, e3vSpecialResult, isSpecialE3V, useKmt3tDiagonal) {
+        function displayResults(chordTable, diagonalTable, diagonalKmt3tTable, baseForces, e3vSpecialResult) {
              const resultsContainer = document.getElementById('results-container');
              const useSpecialReinforcement = useSpecialReinforcementCheck.checked;
              const useSpecialSplicePlate = useSpecialSplicePlateCheck.checked;
+             const useKmt3tDiagonal = useKmt3tDiagonalCheck.checked;
+             const isSpecialE3V = useSpecialReinforcement || useSpecialSplicePlate;
              const hokyo1Label = useSpecialReinforcement ? '1(標準)' : '';
              const tenseiban1Label = useSpecialSplicePlate ? '1(標準)' : '';
 
@@ -243,140 +269,107 @@
             if (isSpecialE3V) {
                 const reinforcementPart = useSpecialReinforcement ? "2-CT-100x200x12x12" : "2-CT-100x200x8x12";
                 const e3vSpecialCrossSection = `3-H-200x200x8x12 + ${reinforcementPart}`;
-                e3vSpecialRow = `
-                    <tr class="bg-indigo-50">
-                        <td class="font-bold">E3V特</td>
-                        <td>${e3vSpecialCrossSection}</td>
-                        <td>SM490Y</td>
-                        <td class="font-bold">${e3vSpecialResult.tension.toFixed(1)}</td>
-                        <td class="font-bold">${e3vSpecialResult.compression.toFixed(1)}</td>
-                    </tr>
-                `;
+                e3vSpecialRow = `<tr class="bg-indigo-50"><td class="font-bold">E3V特</td><td>${e3vSpecialCrossSection}</td><td>SM490Y</td><td class="font-bold">${e3vSpecialResult.tension.toFixed(1)}</td><td class="font-bold">${e3vSpecialResult.compression.toFixed(1)}</td></tr>`;
             }
 
-            const baseValuesLines = [];
-            baseValuesLines.push(`・弦材 許容引張力 (Nta) = ${baseForces.gentai_Nta.toFixed(1)} kN`);
-            baseValuesLines.push(`・弦材 許容圧縮力 (Nca) = ${baseForces.gentai_Nca.toFixed(1)} kN`);
-            baseValuesLines.push(`・弦材補強${hokyo1Label} 許容引張力 (Nta) = ${baseForces.gentaiHokyo1_Nta.toFixed(1)} kN`);
-            baseValuesLines.push(`・弦材補強${hokyo1Label} 許容圧縮力 (Nca) = ${baseForces.gentaiHokyo1_Nca.toFixed(1)} kN`);
-            
+            const baseValuesLines = [
+                `・弦材 許容引張力 (Nta) = ${baseForces.gentai_Nta.toFixed(1)} kN`, `・弦材 許容圧縮力 (Nca) = ${baseForces.gentai_Nca.toFixed(1)} kN`,
+                `・弦材補強${hokyo1Label} 許容引張力 (Nta) = ${baseForces.gentaiHokyo1_Nta.toFixed(1)} kN`, `・弦材補強${hokyo1Label} 許容圧縮力 (Nca) = ${baseForces.gentaiHokyo1_Nca.toFixed(1)} kN`
+            ];
             if (useSpecialReinforcement) {
-                baseValuesLines.push(`・弦材補強2(特殊) 許容引張力 (Nta) = ${baseForces.gentaiHokyo2_Nta.toFixed(1)} kN`);
-                baseValuesLines.push(`・弦材補強2(特殊) 許容圧縮力 (Nca) = ${baseForces.gentaiHokyo2_Nca.toFixed(1)} kN`);
+                baseValuesLines.push(`・弦材補強2(特殊) 許容引張力 (Nta) = ${baseForces.gentaiHokyo2_Nta.toFixed(1)} kN`, `・弦材補強2(特殊) 許容圧縮力 (Nca) = ${baseForces.gentaiHokyo2_Nca.toFixed(1)} kN`);
             }
-            
             baseValuesLines.push(`・添接板${tenseiban1Label} 許容引張力 (NBt) = ${baseForces.tenseiban1_NBt.toFixed(1)} kN`);
-
             if (useSpecialSplicePlate) {
                 baseValuesLines.push(`・添接板2(特殊) 許容引張力 (NBt) = ${baseForces.tenseiban2_NBt.toFixed(1)} kN`);
             }
-            
             baseValuesLines.push(`・添接板 許容圧縮力 (Nca) = ${baseForces.tenseiban_Nca.toFixed(1)} kN`);
-            baseValuesLines.push(`・斜材 (標準) 許容引張力 (Nta) = ${baseForces.shazai_Nta.toFixed(1)} kN`);
-            baseValuesLines.push(`・斜材 (標準) 許容圧縮力 (Nca) = ${baseForces.shazai_Nca.toFixed(1)} kN`);
-            
+            baseValuesLines.push(`・斜材 (標準) 許容引張力 (Nta) = ${baseForces.shazai_Nta.toFixed(1)} kN`, `・斜材 (標準) 許容圧縮力 (Nca) = ${baseForces.shazai_Nca.toFixed(1)} kN`);
             if (useKmt3tDiagonal) {
-                 baseValuesLines.push(`・斜材(KMT-3T) 許容引張力 (Nta) = ${baseForces.shazai_kmt3t_Nta.toFixed(1)} kN`);
-                 baseValuesLines.push(`・斜材(KMT-3T) 許容圧縮力 (Nca) = ${baseForces.shazai_kmt3t_Nca.toFixed(1)} kN`);
+                 baseValuesLines.push(`・斜材(KMT-3T) 許容引張力 (Nta) = ${baseForces.shazai_kmt3t_Nta.toFixed(1)} kN`, `・斜材(KMT-3T) 許容圧縮力 (Nca) = ${baseForces.shazai_kmt3t_Nca.toFixed(1)} kN`);
             }
 
             const baseValuesHtml = `<div class="formula-box">${baseValuesLines.join('<br>')}</div>`;
 
-            let chordFormulasHtml = `
-                <div class="formula-box">
+            let chordFormulasHtml = `<div class="formula-box">
                     E1  引張: 添接板${tenseiban1Label}の許容引張力×1 = ${baseForces.tenseiban1_NBt.toFixed(1)} × 1 = ${chordTable.E1.tension.toFixed(1)} kN<br>
-                    E1  圧縮: 弦材の許容圧縮力×1 = ${baseForces.gentai_Nca.toFixed(1)} × 1 = ${chordTable.E1.compression.toFixed(1)} kN<br><br>
+                    E1  圧縮: ${chordTable.E1.compression_base_name}×1 = ${chordTable.E1.compression_base_value.toFixed(1)} × 1 = ${chordTable.E1.compression.toFixed(1)} kN<br><br>
                     E1V 引張: 添接板${tenseiban1Label}の許容引張力×2 = ${baseForces.tenseiban1_NBt.toFixed(1)} × 2 = ${chordTable.E1V.tension.toFixed(1)} kN<br>
-                    E1V 圧縮: 弦材補強${hokyo1Label}の許容圧縮力×2 = ${baseForces.gentaiHokyo1_Nca.toFixed(1)} × 2 = ${chordTable.E1V.compression.toFixed(1)} kN<br><br>
+                    E1V 圧縮: ${chordTable.E1V.compression_base_name}×2 = ${chordTable.E1V.compression_base_value.toFixed(1)} × 2 = ${chordTable.E1V.compression.toFixed(1)} kN<br><br>
                     E2  引張: 添接板${tenseiban1Label}の許容引張力×2 = ${baseForces.tenseiban1_NBt.toFixed(1)} × 2 = ${chordTable.E2.tension.toFixed(1)} kN<br>
-                    E2  圧縮: 弦材の許容圧縮力×2 = ${baseForces.gentai_Nca.toFixed(1)} × 2 = ${chordTable.E2.compression.toFixed(1)} kN<br><br>
+                    E2  圧縮: ${chordTable.E2.compression_base_name}×2 = ${chordTable.E2.compression_base_value.toFixed(1)} × 2 = ${chordTable.E2.compression.toFixed(1)} kN<br><br>
                     E3  引張: 添接板${tenseiban1Label}の許容引張力×3 = ${baseForces.tenseiban1_NBt.toFixed(1)} × 3 = ${chordTable.E3.tension.toFixed(1)} kN<br>
-                    E3  圧縮: 弦材の許容圧縮力×3 = ${baseForces.gentai_Nca.toFixed(1)} × 3 = ${chordTable.E3.compression.toFixed(1)} kN<br><br>
+                    E3  圧縮: ${chordTable.E3.compression_base_name}×3 = ${chordTable.E3.compression_base_value.toFixed(1)} × 3 = ${chordTable.E3.compression.toFixed(1)} kN<br><br>
                     E3V 引張: 添接板${tenseiban1Label}の許容引張力×4 = ${baseForces.tenseiban1_NBt.toFixed(1)} × 4 = ${chordTable.E3V.tension.toFixed(1)} kN<br>
-                    E3V 圧縮: 弦材補強${hokyo1Label}の許容圧縮力×4 = ${baseForces.gentaiHokyo1_Nca.toFixed(1)} × 4 = ${chordTable.E3V.compression.toFixed(1)} kN
-                    ${isSpecialE3V ? `
-                        <br><br><hr class="my-2 border-gray-400"><br>
+                    E3V 圧縮: ${chordTable.E3V.compression_base_name}×4 = ${chordTable.E3V.compression_base_value.toFixed(1)} × 4 = ${chordTable.E3V.compression.toFixed(1)} kN
+                    ${isSpecialE3V ? `<br><br><hr class="my-2 border-gray-400"><br>
                         <b>E3V特 引張:</b> ${e3vSpecialResult.tensionExplanation}×4 = ${e3vSpecialResult.minTension.toFixed(1)} × 4 = <b>${e3vSpecialResult.tension.toFixed(1)} kN</b><br>
-                        <b>E3V特 圧縮:</b> ${e3vSpecialResult.compressionExplanation}×4 = ${e3vSpecialResult.minCompression.toFixed(1)} × 4 = <b>${e3vSpecialResult.compression.toFixed(1)} kN</b>`
-                     : ''}
+                        <b>E3V特 圧縮:</b> ${e3vSpecialResult.compressionExplanation}×4 = ${e3vSpecialResult.minCompression.toFixed(1)} × 4 = <b>${e3vSpecialResult.compression.toFixed(1)} kN</b>` : ''}
                 </div>`;
 
             let kmt3tRows = '';
             if(useKmt3tDiagonal) {
-                kmt3tRows = `
-                    <tr class="bg-green-50"><td>E1 (KMT-3T)</td><td>1-H-200x150x9x12</td><td>SM490Y</td><td>${diagonalKmt3tTable.E1.tension.toFixed(1)}</td><td>${diagonalKmt3tTable.E1.compression.toFixed(1)}</td></tr>
-                    <tr class="bg-green-50"><td>E2 (KMT-3T)</td><td>2-H-200x150x9x12</td><td>SM490Y</td><td>${diagonalKmt3tTable.E2.tension.toFixed(1)}</td><td>${diagonalKmt3tTable.E2.compression.toFixed(1)}</td></tr>
-                `;
+                kmt3tRows = `<tr class="bg-green-50"><td>E1 (KMT-3T)</td><td>1-H-200x150x9x12</td><td>SM490Y</td><td>${diagonalKmt3tTable.E1.tension.toFixed(1)}</td><td>${diagonalKmt3tTable.E1.compression.toFixed(1)}</td></tr>
+                    <tr class="bg-green-50"><td>E2 (KMT-3T)</td><td>2-H-200x150x9x12</td><td>SM490Y</td><td>${diagonalKmt3tTable.E2.tension.toFixed(1)}</td><td>${diagonalKmt3tTable.E2.compression.toFixed(1)}</td></tr>`;
             }
 
-            let shazaiFormulaHtml = `
-                <div class="formula-box">
+            let shazaiFormulaHtml = `<div class="formula-box">
                     E1  引張: 斜材(標準)の許容引張力×1 = ${baseForces.shazai_Nta.toFixed(1)} × 1 = ${diagonalTable.E1.tension.toFixed(1)} kN<br>
                     E1  圧縮: 斜材(標準)の許容圧縮力×1 = ${baseForces.shazai_Nca.toFixed(1)} × 1 = ${diagonalTable.E1.compression.toFixed(1)} kN<br><br>
                     E2  引張: 斜材(標準)の許容引張力×2 = ${baseForces.shazai_Nta.toFixed(1)} × 2 = ${diagonalTable.E2.tension.toFixed(1)} kN<br>
                     E2  圧縮: 斜材(標準)の許容圧縮力×2 = ${baseForces.shazai_Nca.toFixed(1)} × 2 = ${diagonalTable.E2.compression.toFixed(1)} kN
-                    ${useKmt3tDiagonal ? `
-                        <br><br><hr class="my-2 border-gray-400"><br>
+                    ${useKmt3tDiagonal ? `<br><br><hr class="my-2 border-gray-400"><br>
                         <b>E1(KMT-3T) 引張:</b> 斜材(KMT-3T)の許容引張力×1 = ${baseForces.shazai_kmt3t_Nta.toFixed(1)} × 1 = <b>${diagonalKmt3tTable.E1.tension.toFixed(1)} kN</b><br>
                         <b>E1(KMT-3T) 圧縮:</b> 斜材(KMT-3T)の許容圧縮力×1 = ${baseForces.shazai_kmt3t_Nca.toFixed(1)} × 1 = <b>${diagonalKmt3tTable.E1.compression.toFixed(1)} kN</b><br><br>
                         <b>E2(KMT-3T) 引張:</b> 斜材(KMT-3T)の許容引張力×2 = ${baseForces.shazai_kmt3t_Nta.toFixed(1)} × 2 = <b>${diagonalKmt3tTable.E2.tension.toFixed(1)} kN</b><br>
-                        <b>E2(KMT-3T) 圧縮:</b> 斜材(KMT-3T)の許容圧縮力×2 = ${baseForces.shazai_kmt3t_Nca.toFixed(1)} × 2 = <b>${diagonalKmt3tTable.E2.compression.toFixed(1)} kN</b>`
-                    : ''}
-                </div>
-            `;
+                        <b>E2(KMT-3T) 圧縮:</b> 斜材(KMT-3T)の許容圧縮力×2 = ${baseForces.shazai_kmt3t_Nca.toFixed(1)} × 2 = <b>${diagonalKmt3tTable.E2.compression.toFixed(1)} kN</b>` : ''}
+                </div>`;
             
-            resultsContainer.innerHTML = `
-                <div class="card">
+            resultsContainer.innerHTML = `<div class="card">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">弦材許容軸力表 (単位: kN)</h2>
-                    <div class="overflow-x-auto">
-                        <table class="table-custom">
-                            <thead><tr><th>弦材タイプ</th><th>断面</th><th>材質</th><th>許容引張力</th><th>許容圧縮力</th></tr></thead>
-                            <tbody>
-                                <tr><td>E1</td><td>1-H-200x200x8x12</td><td>SM490Y</td><td>${chordTable.E1.tension.toFixed(1)}</td><td>${chordTable.E1.compression.toFixed(1)}</td></tr>
-                                <tr><td>E1V</td><td>1-H-200x200x8x12 + 2-CT-100x200x8x12</td><td>SM490Y</td><td>${chordTable.E1V.tension.toFixed(1)}</td><td>${chordTable.E1V.compression.toFixed(1)}</td></tr>
-                                <tr><td>E2</td><td>2-H-200x200x8x12</td><td>SM490Y</td><td>${chordTable.E2.tension.toFixed(1)}</td><td>${chordTable.E2.compression.toFixed(1)}</td></tr>
-                                <tr><td>E3</td><td>3-H-200x200x8x12</td><td>SM490Y</td><td>${chordTable.E3.tension.toFixed(1)}</td><td>${chordTable.E3.compression.toFixed(1)}</td></tr>
-                                <tr><td>E3V</td><td>3-H-200x200x8x12 + 2-CT-100x200x8x12</td><td>SM490Y</td><td>${chordTable.E3V.tension.toFixed(1)}</td><td>${chordTable.E3V.compression.toFixed(1)}</td></tr>
-                                ${e3vSpecialRow}
-                            </tbody>
-                        </table>
-                    </div>
+                    <div class="overflow-x-auto"><table class="table-custom">
+                        <thead><tr><th>弦材タイプ</th><th>断面</th><th>材質</th><th>許容引張力</th><th>許容圧縮力</th></tr></thead>
+                        <tbody>
+                            <tr><td>E1</td><td>1-H-200x200x8x12</td><td>SM490Y</td><td>${chordTable.E1.tension.toFixed(1)}</td><td>${chordTable.E1.compression.toFixed(1)}</td></tr>
+                            <tr><td>E1V</td><td>1-H-200x200x8x12 + 2-CT-100x200x8x12</td><td>SM490Y</td><td>${chordTable.E1V.tension.toFixed(1)}</td><td>${chordTable.E1V.compression.toFixed(1)}</td></tr>
+                            <tr><td>E2</td><td>2-H-200x200x8x12</td><td>SM490Y</td><td>${chordTable.E2.tension.toFixed(1)}</td><td>${chordTable.E2.compression.toFixed(1)}</td></tr>
+                            <tr><td>E3</td><td>3-H-200x200x8x12</td><td>SM490Y</td><td>${chordTable.E3.tension.toFixed(1)}</td><td>${chordTable.E3.compression.toFixed(1)}</td></tr>
+                            <tr><td>E3V</td><td>3-H-200x200x8x12 + 2-CT-100x200x8x12</td><td>SM490Y</td><td>${chordTable.E3V.tension.toFixed(1)}</td><td>${chordTable.E3V.compression.toFixed(1)}</td></tr>
+                            ${e3vSpecialRow}
+                        </tbody>
+                    </table></div>
                 </div>
-
                 <div class="card">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">斜材許容軸力表 (単位: kN)</h2>
-                    <div class="overflow-x-auto">
-                        <table class="table-custom">
-                             <thead><tr><th>斜材タイプ</th><th>断面</th><th>材質</th><th>許容引張力</th><th>許容圧縮力</th></tr></thead>
-                             <tbody>
-                                <tr><td>E1</td><td>1-H-200x150x8x9</td><td>SM490Y</td><td>${diagonalTable.E1.tension.toFixed(1)}</td><td>${diagonalTable.E1.compression.toFixed(1)}</td></tr>
-                                <tr><td>E2</td><td>2-H-200x150x8x9</td><td>SM490Y</td><td>${diagonalTable.E2.tension.toFixed(1)}</td><td>${diagonalTable.E2.compression.toFixed(1)}</td></tr>
-                                ${kmt3tRows}
-                            </tbody>
-                        </table>
-                    </div>
+                    <div class="overflow-x-auto"><table class="table-custom">
+                         <thead><tr><th>斜材タイプ</th><th>断面</th><th>材質</th><th>許容引張力</th><th>許容圧縮力</th></tr></thead>
+                         <tbody>
+                            <tr><td>E1</td><td>1-H-200x150x8x9</td><td>SM490Y</td><td>${diagonalTable.E1.tension.toFixed(1)}</td><td>${diagonalTable.E1.compression.toFixed(1)}</td></tr>
+                            <tr><td>E2</td><td>2-H-200x150x8x9</td><td>SM490Y</td><td>${diagonalTable.E2.tension.toFixed(1)}</td><td>${diagonalTable.E2.compression.toFixed(1)}</td></tr>
+                            ${kmt3tRows}
+                        </tbody>
+                    </table></div>
                 </div>
-
                 <div class="card">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">計算過程</h2>
                     <h3 class="text-xl font-medium text-gray-700 mt-4 mb-2">基礎値</h3>
                     ${baseValuesHtml}
-
                     <h3 class="text-xl font-medium text-gray-700 mt-6 mb-2">弦材の許容軸力 計算式</h3>
                     <p class="text-gray-600 mb-2">※関連部材の許容力の最小値で計算しています。</p>
                     ${chordFormulasHtml}
-                    
                     <h3 class="text-xl font-medium text-gray-700 mt-6 mb-2">斜材の許容軸力 計算式</h3>
                     ${shazaiFormulaHtml}
-                </div>
-            `;
+                </div>`;
         }
         
         factorSelect.addEventListener('change', calculateAndDisplay);
         useSpecialReinforcementCheck.addEventListener('change', calculateAndDisplay);
         useSpecialSplicePlateCheck.addEventListener('change', calculateAndDisplay);
         useKmt3tDiagonalCheck.addEventListener('change', calculateAndDisplay);
-        
+        lkGentaiInput.addEventListener('input', calculateAndDisplay);
+        lkHokyo1Input.addEventListener('input', calculateAndDisplay);
+        lkHokyo2Input.addEventListener('input', calculateAndDisplay);
+
         window.addEventListener('load', calculateAndDisplay);
     </script>
 </body>
