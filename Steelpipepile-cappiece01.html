@@ -39,71 +39,138 @@
                 <!-- Input Section -->
                 <div class="space-y-6">
                     <h2 class="text-xl font-bold text-gray-800 border-b pb-2">入力条件</h2>
+
+                    <!-- Image -->
+                    <div class="p-4 bg-gray-50 rounded-lg flex justify-center items-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 280" class="h-40">
+                            <title>リブプレート形状参考図</title>
+                            <!-- Rib Plate Shape -->
+                            <path d="M 20,40 L 110,40 L 130,60 L 130,240 L 75,240 L 20,95 Z" fill="none" stroke="#4b5563" stroke-width="2"/>
+                            
+                            <!-- C20 Chamfer Label -->
+                            <path d="M 120,50 L 140,30" fill="none" stroke="#4b5563" stroke-width="1.5"/>
+                            <text x="145" y="30" font-size="16" fill="#374151" font-family="sans-serif" text-anchor="start">C20</text>
+                            
+                            <!-- Dimension a -->
+                            <path d="M 20,20 L 130,20" fill="none" stroke="#4b5563" stroke-width="1"/>
+                            <path d="M 20,15 L 20,25" fill="none" stroke="#4b5563" stroke-width="1"/>
+                            <path d="M 130,15 L 130,25" fill="none" stroke="#4b5563" stroke-width="1"/>
+                            <text x="75" y="18" font-size="20" font-weight="bold" fill="#374151" font-family="sans-serif" text-anchor="middle">a</text>
+                            
+                            <!-- Dimension b -->
+                            <path d="M 150,60 L 150,240" fill="none" stroke="#4b5563" stroke-width="1"/>
+                            <path d="M 145,60 L 155,60" fill="none" stroke="#4b5563" stroke-width="1"/>
+                            <path d="M 145,240 L 155,240" fill="none" stroke="#4b5563" stroke-width="1"/>
+                            <text x="165" y="150" font-size="20" font-weight="bold" fill="#374151" font-family="sans-serif" text-anchor="middle">b</text>
+                        </svg>
+                    </div>
                     
                     <!-- General Inputs -->
-                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
-                        <h3 class="font-semibold text-gray-700">共通項目</h3>
-                        <div>
-                            <label for="horizontalLoad" class="block text-sm font-medium label-text">水平荷重 (H)</label>
-                            <div class="mt-1 flex items-center">
-                                <input type="number" id="horizontalLoad" value="85.2" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <span class="ml-3 unit-text">kN</span>
+                    <div class="p-4 border rounded-lg bg-gray-50">
+                        <h3 class="font-semibold text-gray-700 mb-4">共通項目</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="horizontalLoad" class="block text-sm font-medium label-text">水平荷重 (H)</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="horizontalLoad" value="85.2" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <span class="ml-3 unit-text">kN</span>
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <label for="allowableIncrease" class="block text-sm font-medium label-text">許容応力度割増係数</label>
-                            <div class="mt-1">
-                                <input type="number" id="allowableIncrease" value="1.50" step="0.01" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                            </div>
-                            <div class="mt-2 flex space-x-2">
-                                <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.00</button>
-                                <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.25</button>
-                                <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.50</button>
+                            <div>
+                                <label for="allowableIncrease" class="block text-sm font-medium label-text">許容応力度割増係数</label>
+                                <div class="mt-1">
+                                    <input type="number" id="allowableIncrease" value="1.50" step="0.01" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                                <div class="mt-2 flex space-x-2">
+                                    <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.00</button>
+                                    <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.25</button>
+                                    <button type="button" class="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 preset-btn">1.50</button>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Rib to Top Plate Weld -->
-                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
-                         <h3 class="font-semibold text-gray-700">リブプレートとトッププレートの隅肉溶接</h3>
-                        <div>
-                            <label for="legLength1" class="block text-sm font-medium label-text">脚長</label>
-                            <div class="mt-1 flex items-center">
-                                <input type="number" id="legLength1" value="6" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <span class="ml-3 unit-text">mm</span>
+                    <div class="p-4 border rounded-lg bg-gray-50">
+                         <h3 class="font-semibold text-gray-700 mb-4">リブプレートとトッププレートの隅肉溶接</h3>
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+                             <div class="md:col-span-2">
+                                <label for="ribA" class="block text-sm font-medium label-text">リブプレート形状寸法 (a)</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="ribA" value="110" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <span class="ml-3 unit-text">mm</span>
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <label for="weldLength1" class="block text-sm font-medium label-text">溶接長</label>
-                            <div class="mt-1 flex items-center">
-                                <input type="number" id="weldLength1" value="80" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <span class="ml-3 unit-text">mm</span>
+                            <div>
+                                <label for="legLength1" class="block text-sm font-medium label-text">脚長</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="legLength1" value="6" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <span class="ml-3 unit-text">mm</span>
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <label for="ribCount" class="block text-sm font-medium label-text">リブプレート枚数</label>
-                            <div class="mt-1 flex items-center">
-                                <input type="number" id="ribCount" value="4" step="1" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <span class="ml-3 unit-text">枚</span>
+                            <div>
+                                <label for="actualWeldLength1" class="block text-sm font-medium label-text">実溶接長</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="actualWeldLength1" value="90" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <span class="ml-3 unit-text">mm</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="weldLength1" class="block text-sm font-medium label-text">有効溶接長</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="weldLength1" value="80" class="w-full p-2 border border-gray-300 rounded-md shadow-sm bg-gray-200 cursor-not-allowed" readonly>
+                                    <span class="ml-3 unit-text">mm</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="ribCount" class="block text-sm font-medium label-text">リブプレート枚数</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="ribCount" value="4" step="1" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <span class="ml-3 unit-text">枚</span>
+                                </div>
+                            </div>
+                             <div class="md:col-span-2 flex items-center space-x-2 mt-2">
+                                 <input type="checkbox" id="deductEnd1" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" checked>
+                                 <label for="deductEnd1" class="text-sm text-gray-600">溶接長の始終端部を控除する (実溶接長-2x脚長)</label>
                             </div>
                         </div>
                     </div>
 
                     <!-- Rib to Pile Weld -->
-                    <div class="space-y-4 p-4 border rounded-lg bg-gray-50">
-                        <h3 class="font-semibold text-gray-700">リブプレートと鋼管杭の隅肉溶接（現場溶接）</h3>
-                        <div>
-                            <label for="legLength2" class="block text-sm font-medium label-text">脚長</label>
-                            <div class="mt-1 flex items-center">
-                                <input type="number" id="legLength2" value="6" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <span class="ml-3 unit-text">mm</span>
+                    <div class="p-4 border rounded-lg bg-gray-50">
+                        <h3 class="font-semibold text-gray-700 mb-4">リブプレートと鋼管杭の隅肉溶接（現場溶接）</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+                            <div class="md:col-span-2">
+                                <label for="ribB" class="block text-sm font-medium label-text">リブプレート形状寸法 (b)</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="ribB" value="200" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <span class="ml-3 unit-text">mm</span>
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <label for="weldLength2" class="block text-sm font-medium label-text">溶接長</label>
-                             <div class="mt-1 flex items-center">
-                                <input type="number" id="weldLength2" value="180" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <span class="ml-3 unit-text">mm</span>
+                            <div>
+                                <label for="legLength2" class="block text-sm font-medium label-text">脚長</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="legLength2" value="6" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <span class="ml-3 unit-text">mm</span>
+                                </div>
+                            </div>
+                             <div>
+                                <label for="actualWeldLength2" class="block text-sm font-medium label-text">実溶接長</label>
+                                <div class="mt-1 flex items-center">
+                                    <input type="number" id="actualWeldLength2" value="180" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <span class="ml-3 unit-text">mm</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="weldLength2" class="block text-sm font-medium label-text">有効溶接長</label>
+                                 <div class="mt-1 flex items-center">
+                                    <input type="number" id="weldLength2" value="180" class="w-full p-2 border border-gray-300 rounded-md shadow-sm bg-gray-200 cursor-not-allowed" readonly>
+                                    <span class="ml-3 unit-text">mm</span>
+                                </div>
+                            </div>
+                             <div class="md:col-span-2 flex items-center space-x-2 mt-2">
+                                 <input type="checkbox" id="deductEnd2" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" checked>
+                                 <label for="deductEnd2" class="text-sm text-gray-600">溶接長の始終端部を控除する (実溶接長-2x脚長)</label>
                             </div>
                         </div>
                     </div>
@@ -180,10 +247,16 @@
             H: document.getElementById('horizontalLoad'),
             increaseFactor: document.getElementById('allowableIncrease'),
             s1: document.getElementById('legLength1'),
-            L1: document.getElementById('weldLength1'),
+            L1: document.getElementById('weldLength1'), // Effective (calculated)
+            actualL1: document.getElementById('actualWeldLength1'), // Actual (input)
             n: document.getElementById('ribCount'),
             s2: document.getElementById('legLength2'),
-            L2: document.getElementById('weldLength2'),
+            L2: document.getElementById('weldLength2'), // Effective (calculated)
+            actualL2: document.getElementById('actualWeldLength2'), // Actual (input)
+            ribA: document.getElementById('ribA'),
+            ribB: document.getElementById('ribB'),
+            deductEnd1: document.getElementById('deductEnd1'),
+            deductEnd2: document.getElementById('deductEnd2'),
         };
 
         const outputs = {
@@ -208,10 +281,22 @@
             const H = parseFloat(inputs.H.value) || 0;
             const increaseFactor = parseFloat(inputs.increaseFactor.value) || 0;
             const s1 = parseFloat(inputs.s1.value) || 0;
-            const L1 = parseFloat(inputs.L1.value) || 0;
+            const actualL1 = parseFloat(inputs.actualL1.value) || 0;
             const n = parseInt(inputs.n.value) || 0;
             const s2 = parseFloat(inputs.s2.value) || 0;
-            const L2 = parseFloat(inputs.L2.value) || 0;
+            const actualL2 = parseFloat(inputs.actualL2.value) || 0;
+            const ribA = parseFloat(inputs.ribA.value) || 0;
+            const ribB = parseFloat(inputs.ribB.value) || 0;
+            const deductEnd1 = inputs.deductEnd1.checked;
+            const deductEnd2 = inputs.deductEnd2.checked;
+            
+            // Calculate effective weld lengths based on checkbox
+            const L1 = deductEnd1 ? Math.max(0, actualL1 - (2 * s1)) : actualL1;
+            const L2 = deductEnd2 ? Math.max(0, actualL2 - (2 * s2)) : actualL2;
+            
+            // Update readonly effective weld length inputs
+            inputs.L1.value = L1.toFixed(1);
+            inputs.L2.value = L2.toFixed(1);
 
             // --- 1. Common Calculations ---
             const P_kN = n > 0 ? H / n : 0;
@@ -236,7 +321,8 @@
             // --- 3. Rib to Pile Weld Check ---
             const A = 2 * 0.7 * s2 * L2;
             const Z = (2 * 0.7 * s2 * L2 * L2) / 6;
-            const momentArm = (L2 / 2) + 20; // モーメントアームをご要望の計算式に変更
+            // The moment arm calculation is updated as per the new formula.
+            const momentArm = ribB > 20 ? ((ribB - 20) / 2) + 20 : 0;
             const M = P_N * momentArm;
 
             const stress_comp_shear = A > 0 ? P_N / A : 0;
@@ -258,11 +344,29 @@
             outputs.resultCard2.className = isOk2 ? "space-y-2 p-4 border-2 border-green-500 rounded-lg" : "space-y-2 p-4 border-2 border-red-500 rounded-lg";
         }
 
-        // Event Listeners
+        // --- Event Listeners ---
+
+        // Listen to all inputs for changes
         Object.values(inputs).forEach(input => {
             input.addEventListener('input', calculate);
         });
+        
+        // Special listeners for rib dimensions to update actual weld length defaults
+        inputs.ribA.addEventListener('input', () => {
+            const ribA_val = parseFloat(inputs.ribA.value) || 0;
+            inputs.actualL1.value = ribA_val > 20 ? ribA_val - 20 : 0;
+            // The 'input' event on actualL1 will be fired, which in turn calls calculate()
+            inputs.actualL1.dispatchEvent(new Event('input'));
+        });
 
+        inputs.ribB.addEventListener('input', () => {
+            const ribB_val = parseFloat(inputs.ribB.value) || 0;
+            inputs.actualL2.value = ribB_val > 20 ? ribB_val - 20 : 0;
+            inputs.actualL2.dispatchEvent(new Event('input'));
+        });
+
+
+        // Preset buttons for increase factor
         const presetBtns = document.querySelectorAll('.preset-btn');
         presetBtns.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -272,7 +376,15 @@
         });
 
         // Initial Calculation on Load
-        document.addEventListener('DOMContentLoaded', calculate);
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set initial actual weld lengths based on default rib dimensions
+            const initialRibA = parseFloat(inputs.ribA.value) || 0;
+            inputs.actualL1.value = initialRibA > 20 ? initialRibA - 20 : 0;
+            const initialRibB = parseFloat(inputs.ribB.value) || 0;
+            inputs.actualL2.value = initialRibB > 20 ? initialRibB - 20 : 0;
+            
+            calculate();
+        });
 
     </script>
 </body>
