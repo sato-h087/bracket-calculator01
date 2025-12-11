@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>横構細長比照査アプリ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* カスタムスタイル */
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        .result-table th, .result-table td {
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .result-table th {
+            font-weight: 600;
+        }
+        .result-table td.ok {
+            background-color: #d1fae5; /* green-100 */
+        }
+        .result-table td.ng {
+            background-color: #fee2e2; /* red-100 */
+        }
+        /* Sticky header for large tables */
+        .result-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        /* SVGスタイル */
+        .main-girder {
+            stroke: red;
+            stroke-width: 3;
+        }
+        .cross-beam {
+            stroke: black;
+            stroke-width: 1;
+        }
+        .diagonal-brace-max {
+            stroke: green;
+            stroke-width: 2;
+            stroke-dasharray: none; /* 実線 */
+        }
+        .diagonal-brace-min {
+            stroke: green;
+            stroke-width: 2;
+            stroke-dasharray: 4; /* 破線 */
+        }
+        .frame-line {
+            stroke: black;
+            stroke-width: 1;
+            stroke-dasharray: 5 3;
+        }
+        /* 横構ラベルのスタイル (文字サイズと太さは共通) */
+        .brace-label {
+            font-size: 17px; 
+            fill: black; /* デフォルトの文字色 (主桁, 設置間隔S) */
+            font-weight: bold;
+            text-anchor: middle;
+            text-shadow: 0 0 4px white, 0 0 4px white; 
+        }
+        /* 横構タイプMAXの文字色を青色に上書き */
+        .brace-label.max-label {
+            fill: blue; 
+        }
+        /* 横構タイプMINの文字色を緑色に上書き */
+        .brace-label.min-label {
+            fill: green; 
+        }
+        /* 特殊入力欄のデフォルト非表示 */
+        #customSpacingInput {
+            display: none;
+        }
+    </style>
+    <script>
+        // --- 1. データ定義 ---
+
+        // 資料009-01.pdf: 型ごとの橋長リスト
+        const BRIDGE_LENGTHS = {
+            "1型": ["14.0m", "16.0m", "18.0m", "20.0m", "22.0m", "24.0m"],
+            "1B型": ["14.0m", "16.0m", "18.0m", "20.0m", "22.0m", "24.0m"],
+            "2型": [
+                "12.0m", "14.0m", "16.0m (8+8m)", "16.0m (10+6m)", "18.0m (8+10m)", "18.0m (6+4+8m)",
+                "20.0m (8+4+8m)", "20.0m (10+10m)", "20.0m (6+4+10m)", "22.0m (8+4+10m)", "22.0m (6+10+6m)",
+                "24.0m (10+4+10m)", "24.0m (6+10+8m)", "26.0m (8+10+8m)", "26.0m (6+10+10m)", "28.0m", "30.0m"
+            ],
+            "3型": [
+                "14.0m", "16.0m", "18.0m", "20.0m", "22.0m", "24.0m", "26.0m", "28.0m", "30.0m",
+                "32.0m", "34.0m", "36.0m", "38.0m", "40.0m", "42.0m", "44.0m", "46.0m"
+            ],
+            // 1. 型数のリストに「特殊」を追加
+            "特殊": ["特殊"]
+        };
+
+        // 資料009-03.pdf: 型と橋長ごとの設置間隔リスト (mm)
+        const SPACING_DATA = {
+            "1型": {
+                "14.0m": [2200, 3000], "16.0m": [1200, 3000, 2200], "18.0m": [1200, 3000],
+                "20.0m": [2200, 3000], "22.0m": [1200, 3000, 2200], "24.0m": [1200, 3000]
+            },
+            "1B型": {
+                "14.0m": [2200, 3000], "16.0m": [1200, 3000, 2200], "18.0m": [1200, 3000],
+                "20.0m": [2200, 3000], "22.0m": [1200, 3000, 2200], "24.0m": [1200, 3000]
+            },
+            "2型": {
+                "12.0m": [2300, 2400, 2000], "14.0m": [2300, 2400, 2000, 2200], "16.0m (8+8m)": [2300, 2200, 2000],
+                "16.0m (10+6m)": [2300, 2400, 3000, 2000, 2200, 1300], "18.0m (8+10m)": [2300, 2200, 2000, 3000, 1300],
+                "18.0m (6+4+8m)": [2300, 2400, 3000, 2200], "20.0m (8+4+8m)": [2300, 2200, 3000],
+                "20.0m (10+10m)": [1300, 2200, 3000, 2000], "20.0m (6+4+10m)": [2300, 2400, 3000, 2200, 1300],
+                "22.0m (8+4+10m)": [2300, 2200, 3000, 1300], "22.0m (6+10+6m)": [2300, 2400, 3000],
+                "24.0m (10+4+10m)": [1300, 2200, 3000], "24.0m (6+10+8m)": [2300, 2400, 2200, 3000],
+                "26.0m (8+10+8m)": [2300, 2200, 3000], "26.0m (6+10+10m)": [2300, 2400, 2200, 3000, 1300],
+                "28.0m": [2300, 2200, 3000, 1300], "30.0m": [1300, 2200, 3000]
+            },
+            "3型": {
+                "14.0m": [1300, 2200, 2000], "16.0m": [2300, 2400, 2000, 3000, 2200, 1300], "18.0m": [2300, 2400, 3000, 2000],
+                "20.0m": [1300, 2200, 3000, 2000], "22.0m": [2300, 2400, 3000], "24.0m": [2300, 2400, 2000, 3000],
+                "26.0m": [2300, 2400, 2000, 3000], "28.0m": [2300, 2400, 3000], "30.0m": [2300, 2400, 3000, 2000],
+                "32.0m": [2300, 2400, 3000, 2000], "34.0m": [2300, 2400, 3000], "36.0m": [2300, 2400, 3000, 2000],
+                "38.0m": [2300, 2400, 3000, 2000], "40.0m": [2300, 2400, 3000], "42.0m": [2300, 2400, 2000, 3000],
+                "44.0m": [2300, 2400, 2000, 3000], "46.0m": [2300, 2400, 3000]
+            }
+        };
+
+        // 資料009-02.pdf: 使用材料のリストと断面二次半径r (cm)
+        const MATERIALS = [
+            { name: "L-130x130x9", r: 2.57 },
+            { name: "L-150x150x12", r: 2.96 },
+            { name: "H-125x125x6.5x9", r: 3.13 },
+            { name: "H-150x150x7x10", r: 3.77 },
+            { name: "CT-122x175x7x11", r: 3.22 }
+        ];
+
+        // 初期値として選択される材料
+        const INITIAL_MATERIALS = [
+            MATERIALS[0].name, // L-130x130x9
+            MATERIALS[2].name, // H-125x125x6.5x9
+            MATERIALS[4].name  // CT-122x175x7x11
+        ];
+
+        // --- 2. ユーティリティ関数と計算ロジック ---
+
+        /**
+         * 角度をラジアンに変換
+         * @param {number} degrees 角度
+         * @returns {number} ラジアン
+         */
+        function toRadians(degrees) {
+            return degrees * (Math.PI / 180);
+        }
+
+        /**
+         * 横構の長さL (mm) を計算
+         * H = S +/- G/tan(theta) に基づく計算ロジック
+         * G: 主桁間隔 (m)
+         * S: 設置間隔 (mm)
+         * angle: 角度 (度)
+         * @returns {number} 横構の長さ (cm)
+         */
+        function calculateLength(G_m, S_mm, angle_deg, type) {
+            const G_mm = G_m * 1000; // 主桁間隔を mm に変換
+
+            // **修正箇所**: 角度が90°の場合、Sが水平投影長Hとして作用する計算を強制
+            if (angle_deg === 90) {
+                // ユーザー要望の L = sqrt(G^2 + S^2) を再現
+                // G_mm^2 + S_mm^2 の平方根を求め、cm に変換
+                const L_mm = Math.sqrt(Math.pow(G_mm, 2) + Math.pow(S_mm, 2));
+                return L_mm / 10;
+            }
+
+            const angle_rad = toRadians(angle_deg);
+            const tan_val = Math.tan(angle_rad);
+            
+            if (tan_val === 0) {
+                // 角度が0°に近い場合、無限大を避ける
+                return G_m * 100; 
+            }
+
+            // 水平方向のずれ ΔH (mm) を計算: G_mm / tan(theta)
+            const deltaH_mm = G_mm / tan_val;
+            
+            // 水平投影長 H (mm) を計算 (MAX/MINの幾何学的ロジック)
+            let H_mm;
+
+            if (type === 'MAX') {
+                // H_MAX = S + ΔH
+                H_mm = S_mm + deltaH_mm;
+            } else { // 'MIN'
+                // H_MIN = |S - ΔH|
+                H_mm = Math.abs(S_mm - deltaH_mm);
+            }
+
+            // 横構長 L (mm) = sqrt(G_mm^2 + H_mm^2)
+            const L_mm = Math.sqrt(Math.pow(G_mm, 2) + Math.pow(H_mm, 2));
+
+            // 結果を cm で返す (mm -> cm)
+            return L_mm / 10;
+        }
+
+        /**
+         * メインの計算処理
+         */
+        function calculateSlenderness() {
+            const type = document.getElementById('bridgeType').value;
+            const length = document.getElementById('bridgeLength').value;
+            const G_m = parseFloat(document.getElementById('girderSpacing').value);
+            const angle_deg = parseFloat(document.getElementById('angle').value);
+
+            if (!type || !length || isNaN(G_m) || isNaN(angle_deg) || G_m <= 0 || angle_deg <= 0 || angle_deg > 90) {
+                document.getElementById('result').innerHTML = `<p class="text-red-600 font-semibold mt-4">全ての入力項目を正しく選択・入力してください (主桁間隔>0, 角度 1°〜90°)。</p>`;
+                return;
+            }
+
+            // 選択された材料のr値を取得
+            const selectedMaterials = [];
+            for (let i = 1; i <= 3; i++) {
+                const materialName = document.getElementById(`material${i}`).value;
+                const material = MATERIALS.find(m => m.name === materialName);
+                if (material) {
+                    selectedMaterials.push(material);
+                }
+            }
+
+            let spacings = [];
+            if (type === '特殊') {
+                // 4. 型数で特殊を選択した場合は、入力した設置間隔を使って計算する
+                const customInputs = document.querySelectorAll('#customSpacingInput input[type="number"]');
+                let validInputs = false;
+                customInputs.forEach(input => {
+                    const value = parseInt(input.value);
+                    if (!isNaN(value) && value > 0) {
+                        spacings.push(value);
+                        validInputs = true;
+                    }
+                });
+                
+                if (!validInputs) {
+                    document.getElementById('result').innerHTML = `<p class="text-red-600 font-semibold mt-4">特殊な型を選択した場合、設置間隔を1つ以上入力してください。</p>`;
+                    return;
+                }
+            } else {
+                // 通常の型の場合
+                spacings = SPACING_DATA[type]?.[length] || [];
+                if (spacings.length === 0) {
+                    document.getElementById('result').innerHTML = `<p class="text-red-600 font-semibold mt-4">選択された型 (${type}) と橋長 (${length}) に対応する設置間隔が見つかりません。</p>`;
+                    return;
+                }
+            }
+
+            // テーブルヘッダーのデザイン修正: bg-gray-200 text-gray-800 で視認性を確保
+            let resultsHtml = `
+                <h3 class="text-xl font-bold mt-6 mb-4 border-b pb-2 text-gray-800">細長比照査結果</h3>
+                <div class="overflow-x-auto rounded-lg shadow-md border border-gray-200">
+                <table class="result-table w-full table-auto border-collapse">
+                    <thead class="bg-gray-200 text-gray-800">
+                        <tr>
+                            <th rowspan="2" class="sticky left-0 bg-gray-200 border-r border-gray-300 z-20">設置間隔 S (mm)</th>
+                            <th rowspan="2" class="border-r border-gray-300">横構タイプ</th>
+                            <th rowspan="2" class="border-r border-gray-300">横構長 L (cm)</th>
+                            ${selectedMaterials.map((m, i) => 
+                                // 材料名と断面二次半径の間に改行タグ（<br>）を挿入
+                                `<th colspan="2" class="border-r border-gray-300 border-b border-gray-300">使用材料 ${i + 1}: ${m.name}<br>（断面二次半径 r=${m.r} cm ）</th>`
+                            ).join('')}
+                        </tr>
+                        <tr>
+                            ${selectedMaterials.map(() => 
+                                `<th class="bg-gray-100 border-r border-gray-300 text-sm font-semibold text-gray-700">細長比 = L/r</th><th class="bg-gray-100 border-r border-gray-300 text-sm font-semibold text-gray-700">判定</th>`
+                            ).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            spacings.forEach((S_mm, index) => {
+                const L_MAX_cm = calculateLength(G_m, S_mm, angle_deg, 'MAX');
+                const L_MIN_cm = calculateLength(G_m, S_mm, angle_deg, 'MIN');
+                
+                // 行の背景色を交互に変える（シマウマ柄）
+                const rowClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+
+                // MAXの行
+                resultsHtml += `
+                    <tr class="${rowClass} border-b border-gray-100">
+                        <td rowspan="2" class="sticky left-0 font-bold ${rowClass} border-r border-gray-200">${S_mm}</td>
+                        <td class="font-medium text-blue-700">MAX</td>
+                        <td>${L_MAX_cm.toFixed(1)}</td>
+                        ${selectedMaterials.map(m => {
+                            const lambda = L_MAX_cm / m.r;
+                            const status = lambda <= 150 ? 'OK' : 'NG';
+                            // NGの場合は赤太字、OKは青色
+                            const statusClass = status === 'OK' ? 'text-blue-600' : 'text-red-600';
+                            return `
+                                <td>${lambda.toFixed(1)}</td>
+                                <td class="${status.toLowerCase()} font-bold ${statusClass}">${status}</td>
+                            `;
+                        }).join('')}
+                    </tr>
+                `;
+
+                // MINの行
+                resultsHtml += `
+                    <tr class="${rowClass} border-b border-gray-300">
+                        <td class="font-medium text-green-700">MIN</td>
+                        <td>${L_MIN_cm.toFixed(1)}</td>
+                        ${selectedMaterials.map(m => {
+                            const lambda = L_MIN_cm / m.r;
+                            const status = lambda <= 150 ? 'OK' : 'NG';
+                            const statusClass = status === 'OK' ? 'text-blue-600' : 'text-red-600';
+                            return `
+                                <td>${lambda.toFixed(1)}</td>
+                                <td class="${status.toLowerCase()} font-bold ${statusClass}">${status}</td>
+                            `;
+                        }).join('')}
+                    </tr>
+                `;
+            });
+
+            resultsHtml += `
+                    </tbody>
+                </table>
+                </div>
+                <p class="mt-4 text-sm text-gray-600">
+                    ※細長比 = L (cm) / r (cm)。判定基準は 細長比≦150でOK、細長比＞150でNGです。
+                </p>
+            `;
+
+            document.getElementById('result').innerHTML = resultsHtml;
+        }
+
+        // --- 3. DOM操作とイベントリスナー ---
+        
+        /**
+         * 橋長リストとカスタム入力欄の表示を更新
+         */
+        function updateBridgeLengths() {
+            const type = document.getElementById('bridgeType').value;
+            const lengthSelect = document.getElementById('bridgeLength');
+            const customSpacingDiv = document.getElementById('customSpacingInput');
+            
+            // 3. 型数で特殊を選択した場合のみ、追加入力欄を表示/非表示
+            if (type === '特殊') {
+                lengthSelect.innerHTML = '<option value="特殊" selected>特殊</option>';
+                lengthSelect.disabled = true;
+                customSpacingDiv.style.display = 'block';
+            } else {
+                lengthSelect.innerHTML = '<option value="" disabled selected>橋長を選択</option>';
+                const lengths = BRIDGE_LENGTHS[type] || [];
+                lengths.forEach(length => {
+                    const option = document.createElement('option');
+                    option.value = length;
+                    option.textContent = length;
+                    lengthSelect.appendChild(option);
+                });
+                lengthSelect.disabled = lengths.length === 0;
+                customSpacingDiv.style.display = 'none';
+            }
+            document.getElementById('result').innerHTML = '';
+        }
+
+        /**
+         * 初期化処理
+         */
+        window.onload = function() {
+            // 初期値の設定
+            document.getElementById('girderSpacing').value = '2.0';
+            document.getElementById('angle').value = '90';
+
+            // 材料選択リストのオプション生成
+            const materialOptionsHtml = MATERIALS.map(m => `<option value="${m.name}">${m.name} ($r=${m.r} \text{cm}$)</option>`).join('');
+
+            for (let i = 1; i <= 3; i++) {
+                const select = document.getElementById(`material${i}`);
+                select.innerHTML = materialOptionsHtml;
+                select.value = INITIAL_MATERIALS[i - 1];
+            }
+
+            // 型のリストのセットアップとイベントリスナー
+            const typeSelect = document.getElementById('bridgeType');
+            Object.keys(BRIDGE_LENGTHS).forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                typeSelect.appendChild(option);
+            });
+            typeSelect.addEventListener('change', updateBridgeLengths);
+            
+            // 計算ボタンのイベントリスナー
+            document.getElementById('calculateBtn').addEventListener('click', calculateSlenderness);
+            
+            // 入力値変更時に結果をクリアするリスナー
+            document.getElementById('girderSpacing').addEventListener('input', () => document.getElementById('result').innerHTML = '');
+            document.getElementById('angle').addEventListener('input', () => document.getElementById('result').innerHTML = '');
+            document.getElementById('bridgeLength').addEventListener('change', () => document.getElementById('result').innerHTML = '');
+            document.getElementById('material1').addEventListener('change', () => document.getElementById('result').innerHTML = '');
+            document.getElementById('material2').addEventListener('change', () => document.getElementById('result').innerHTML = '');
+            document.getElementById('material3').addEventListener('change', () => document.getElementById('result').innerHTML = '');
+            
+            // 特殊入力欄のリスナーも追加
+            document.querySelectorAll('#customSpacingInput input[type="number"]').forEach(input => {
+                input.addEventListener('input', () => document.getElementById('result').innerHTML = '');
+            });
+
+            // 初期状態で橋長リストを無効化し、カスタム入力欄を非表示に
+            document.getElementById('bridgeLength').disabled = true;
+            document.getElementById('customSpacingInput').style.display = 'none';
+
+            // 初期選択が設定されている場合（アプリのリロード時など）に橋長リストを更新
+            if (typeSelect.value) {
+                updateBridgeLengths();
+            }
+        };
+    </script>
+</head>
+<body class="bg-gray-50 font-sans">
+    <div class="container bg-white shadow-xl rounded-xl mt-8">
+        <h1 class="text-3xl font-extrabold text-gray-800 border-b-4 border-blue-500 pb-2 mb-6">横構細長比 照査シミュレーター</h1>
+
+        <!-- 入力パラメータと材料選択セクション -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 入力セクション -->
+            <div class="p-4 bg-blue-50 rounded-lg shadow-inner">
+                <h2 class="text-xl font-semibold text-blue-800 mb-4 border-b-2 border-blue-300 pb-1">入力パラメータ</h2>
+                
+                <!-- 1. 型数選択 -->
+                <div class="mb-4">
+                    <label for="bridgeType" class="block text-sm font-medium text-gray-700 mb-1">
+                        1. 型数を選択
+                    </label>
+                    <select id="bridgeType" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                        <option value="" disabled selected>型を選択</option>
+                    </select>
+                </div>
+
+                <!-- 2. 橋長選択 -->
+                <div class="mb-4">
+                    <label for="bridgeLength" class="block text-sm font-medium text-gray-700 mb-1">
+                        2. 橋長を選択
+                    </label>
+                    <select id="bridgeLength" disabled class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 bg-gray-100 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                        <option value="" disabled selected>型を選択後にリストが表示されます</option>
+                    </select>
+                </div>
+
+                <!-- 3. 主桁間隔入力 -->
+                <div class="mb-4">
+                    <label for="girderSpacing" class="block text-sm font-medium text-gray-700 mb-1">
+                        3. 主桁間隔入力 (m)
+                    </label>
+                    <input type="number" id="girderSpacing" value="2.0" step="0.1" min="0.1"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                </div>
+
+                <!-- 4. 角度入力 -->
+                <div class="mb-4">
+                    <label for="angle" class="block text-sm font-medium text-gray-700 mb-1">
+                        4. 角度入力 (°)
+                    </label>
+                    <input type="number" id="angle" value="90" step="1" min="1" max="90"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                </div>
+            </div>
+
+            <!-- 使用材料選択セクション -->
+            <div class="p-4 bg-yellow-50 rounded-lg shadow-inner">
+                <h2 class="text-xl font-semibold text-yellow-800 mb-4 border-b-2 border-yellow-300 pb-1">5. 横構の使用材料を選択</h2>
+
+                <!-- 部材1 -->
+                <div class="mb-4">
+                    <label for="material1" class="block text-sm font-medium text-gray-700 mb-1">
+                        部材 1 (初期値: L-130x130x9)
+                    </label>
+                    <select id="material1" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm rounded-md shadow-sm">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                </div>
+                
+                <!-- 部材2 -->
+                <div class="mb-4">
+                    <label for="material2" class="block text-sm font-medium text-gray-700 mb-1">
+                        部材 2 (初期値: H-125x125x6.5x9)
+                    </label>
+                    <select id="material2" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm rounded-md shadow-sm">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                </div>
+
+                <!-- 部材3 -->
+                <div class="mb-4">
+                    <label for="material3" class="block text-sm font-medium text-gray-700 mb-1">
+                        部材 3 (初期値: CT-122x175x7x11)
+                    </label>
+                    <select id="material3" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm rounded-md shadow-sm">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 設置間隔の追加入力欄 (特殊選択時のみ表示) -->
+        <div id="customSpacingInput" class="mt-6 p-4 bg-gray-100 rounded-lg shadow">
+            <h2 class="text-xl font-semibold text-gray-700 mb-3 border-b pb-1">設置間隔の指定 (mm)</h2>
+            <p class="text-sm text-gray-600 mb-3">特殊な型の場合、計算に使用する設置間隔を最大6つまで入力してください。</p>
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <input type="number" id="spacing1" placeholder="間隔 1" min="1" class="p-2 border rounded-md text-sm">
+                <input type="number" id="spacing2" placeholder="間隔 2" min="1" class="p-2 border rounded-md text-sm">
+                <input type="number" id="spacing3" placeholder="間隔 3" min="1" class="p-2 border rounded-md text-sm">
+                <input type="number" id="spacing4" placeholder="間隔 4" min="1" class="p-2 border rounded-md text-sm">
+                <input type="number" id="spacing5" placeholder="間隔 5" min="1" class="p-2 border rounded-md text-sm">
+                <input type="number" id="spacing6" placeholder="間隔 6" min="1" class="p-2 border rounded-md text-sm">
+            </div>
+        </div>
+
+        <!-- 横構配置イメージ図 (資料009-06.pdfに基づきSVGで作成) -->
+        <div class="mt-8 p-4 bg-white rounded-lg border border-gray-200 shadow-md">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">横構配置イメージ図</h2>
+            <div class="flex flex-col items-center justify-center">
+                <svg viewBox="-60 0 910 300" class="w-full max-w-lg" xmlns="http://www.w3.org/2000/svg">
+                    <!-- 座標点定義:
+                         点1(150, 50), 点2(750, 50)
+                         点3(100, 150), 点4(700, 150)
+                         点5(50, 250), 点6(650, 250)
+                    -->
+                    <script>
+                        const X1_START = 150; 
+                        const X2_START = 100;
+                        const X3_START = 50;
+
+                        const Y1 = 50;
+                        const Y2 = 150;
+                        const Y3 = 250;
+                    </script>
+                    
+                    <!-- 主桁の左側に「主桁」ラベルを追加 -->
+                    <!-- fill: black (デフォルト) -->
+                    <text x="50" y="55" class="brace-label">主桁</text>
+                    <text x="0" y="155" class="brace-label">主桁</text>
+                    <text x="-50" y="255" class="brace-label">主桁</text>
+                    
+                    <!-- 橋軸線 (主桁) (赤線) -->
+                    <line x1="150" y1="50" x2="750" y2="50" class="main-girder" />
+                    <line x1="100" y1="150" x2="700" y2="150" class="main-girder" />
+                    <line x1="50" y1="250" x2="650" y2="250" class="main-girder" />
+
+                    <!-- 60度の斜材 (平行四辺形の枠、黒破線) -->
+                    <line x1="150" y1="50" x2="50" y2="250" class="frame-line" />
+                    <line x1="350" y1="50" x2="250" y2="250" class="frame-line" />
+                    <line x1="550" y1="50" x2="450" y2="250" class="frame-line" />
+                    <line x1="750" y1="50" x2="650" y2="250" class="frame-line" />
+                    
+                    <!-- 横構タイプ MAX (緑の実線) 3本 -->
+                    <line x1="50" y1="250" x2="300" y2="150" class="diagonal-brace-max" />
+                    <line x1="300" y1="150" x2="550" y2="50" class="diagonal-brace-max" />
+                    <line x1="450" y1="250" x2="700" y2="150" class="diagonal-brace-max" />
+                    
+                    <!-- 横構タイプ MIN (緑の破線) 3本 -->
+                    <line x1="150" y1="50" x2="300" y2="150" class="diagonal-brace-min" />
+                    <line x1="300" y1="150" x2="450" y2="250" class="diagonal-brace-min" />
+                    <line x1="550" y1="50" x2="700" y2="150" class="diagonal-brace-min" />
+
+                    <!-- **** 横構ラベルの追加 (水平表示, 文字サイズ拡大) **** -->
+                    
+                    <!-- MAX Lines (青色) -->
+                    <text x="175" y="200" class="brace-label max-label">横構タイプMAX</text>
+                    <text x="425" y="100" class="brace-label max-label">横構タイプMAX</text>
+                    <text x="575" y="200" class="brace-label max-label">横構タイプMAX</text>
+                    
+                    <!-- MIN Lines (緑色) -->
+                    <text x="225" y="100" class="brace-label min-label">横構タイプMIN</text>
+                    <text x="375" y="200" class="brace-label min-label">横構タイプMIN</text>
+                    <text x="625" y="100" class="brace-label min-label">横構タイプMIN</text>
+
+                    <!-- 設置間隔 S ラベル (3区間目まで) -->
+                    <!-- fill: black (デフォルト) -->
+                    <text x="150" y="295" class="brace-label">設置間隔 S</text>
+                    <text x="350" y="295" class="brace-label">設置間隔 S</text>
+                    <text x="550" y="295" class="brace-label">設置間隔 S</text>
+                    
+                </svg>
+                <!-- 修正後の注意書き -->
+                <p class="mt-2 text-gray-600" style="font-size: 0.7rem;">
+                    ※上図は横構配置の模式図で実際の寸法・角度は反映していません。
+                </p>
+            </div>
+        </div>
+
+
+        <!-- 計算ボタン -->
+        <div class="mt-6">
+            <button id="calculateBtn"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-150 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-500 focus:ring-opacity-50">
+                細長比を計算・照査
+            </button>
+        </div>
+
+        <!-- 結果表示セクション -->
+        <div id="result" class="mt-8">
+            <p class="text-gray-500 italic">上記の入力を行い、「細長比を計算・照査」ボタンを押してください。</p>
+        </div>
+
+    </div>
+</body>
+</html>
