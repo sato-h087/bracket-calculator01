@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>覆工板トラック積載可否判定システム</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Noto Sans JP -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background-color: #f8fafc;
+    }
+    /* スライダーの見た目調整 */
+    input[type="range"]::-webkit-slider-thumb {
+      background: #3b82f6;
+      cursor: pointer;
+    }
+    /* 印刷時の設定 */
+    @media print {
+      body {
+        background: white !important;
+        color: black !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+      /* 印刷時に要素が途切れるのを防ぐ */
+      .avoid-break {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- ==================== 画面表示用メイン UI ==================== -->
+  <div class="no-print flex-grow flex flex-col">
+    <!-- ヘッダー -->
+    <header class="bg-gradient-to-r from-slate-900 to-blue-950 text-white shadow-lg py-4 px-6">
+      <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="flex items-center gap-3">
+          <div class="bg-blue-600 p-2 rounded-lg shadow-inner">
+            <!-- トラックアイコン (SVG) -->
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"></path>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-lg md:text-xl font-black tracking-wider">覆工板トラック積載可否判定システム</h1>
+            <p class="text-[10px] text-blue-200 tracking-wide mt-0.5">Plate Loading Analyzer for Construction & Logistics</p>
+          </div>
+        </div>
+        <div class="text-right text-xs text-slate-400">
+          <span class="bg-slate-800/80 px-3 py-1 rounded-full border border-slate-700/50">標準準拠版 v2.2 (無償ライセンス)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- コンテンツボディ -->
+    <main class="max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 flex-grow flex flex-col gap-6">
+      
+      <!-- ==================== 上部セクション：寸法入力と単体プレビュー（左右配置） ==================== -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        
+        <!-- 左側：寸法入力パラメータ (12分の5幅) -->
+        <div class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 flex flex-col justify-between">
+          <div>
+            <h2 class="text-md font-bold text-slate-900 border-b border-slate-100 pb-2.5 mb-4 flex items-center gap-2">
+              <span class="w-1.5 h-5 bg-blue-600 rounded-full"></span>寸法入力パラメータ
+            </h2>
+            
+            <form id="input-form" onsubmit="event.preventDefault();" class="space-y-4">
+              <!-- 覆工板の寸法 -->
+              <div>
+                <h3 class="text-xs font-bold text-blue-900 mb-2.5 bg-blue-50/50 px-2.5 py-1 rounded flex justify-between items-center">
+                  <span>1) 覆工板の寸法 (台形 / 最大4000mm)</span>
+                  <span class="text-[10px] font-normal text-blue-600">単位: mm</span>
+                </h3>
+                <div class="space-y-3.5">
+                  <!-- 長さ L -->
+                  <div>
+                    <div class="flex justify-between items-center mb-0.5">
+                      <label for="input-L" class="text-xs font-bold text-slate-600">覆工板の長さ L</label>
+                      <div class="flex items-center gap-1">
+                        <input type="number" id="input-L" value="2000" min="100" max="4000" step="50" class="w-16 px-1.5 py-0.5 border border-slate-300 rounded text-right text-xs font-bold focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                        <span class="text-[10px] text-slate-400">mm</span>
+                      </div>
+                    </div>
+                    <input type="range" id="range-L" min="500" max="4000" step="50" value="2000" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                  </div>
+                  
+                  <!-- 幅 B1 -->
+                  <div>
+                    <div class="flex justify-between items-center mb-0.5">
+                      <label for="input-B1" class="text-xs font-bold text-slate-600">覆工板の幅 B1 (上・短辺側)</label>
+                      <div class="flex items-center gap-1">
+                        <input type="number" id="input-B1" value="500" min="100" max="4000" step="50" class="w-16 px-1.5 py-0.5 border border-slate-300 rounded text-right text-xs font-bold focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                        <span class="text-[10px] text-slate-400">mm</span>
+                      </div>
+                    </div>
+                    <input type="range" id="range-B1" min="100" max="4000" step="50" value="500" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                  </div>
+
+                  <!-- 幅 B2 -->
+                  <div>
+                    <div class="flex justify-between items-center mb-0.5">
+                      <label for="input-B2" class="text-xs font-bold text-slate-600">覆工板の幅 B2 (下・長辺側)</label>
+                      <div class="flex items-center gap-1">
+                        <input type="number" id="input-B2" value="2200" min="100" max="4000" step="50" class="w-16 px-1.5 py-0.5 border border-slate-300 rounded text-right text-xs font-bold focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                        <span class="text-[10px] text-slate-400">mm</span>
+                      </div>
+                    </div>
+                    <input type="range" id="range-B2" min="100" max="4000" step="50" value="2200" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                  </div>
+                  <!-- エラー表示用 -->
+                  <p id="b1b2-error" class="hidden text-[11px] text-red-600 bg-red-50 p-1.5 rounded border border-red-200 font-semibold"></p>
+                </div>
+              </div>
+
+              <!-- トラックの寸法 -->
+              <div>
+                <h3 class="text-xs font-bold text-slate-900 mb-2.5 bg-slate-100 px-2.5 py-1 rounded flex justify-between items-center">
+                  <span>2) トラック荷台の寸法 (長方形)</span>
+                  <span class="text-[10px] font-normal text-slate-500">単位: mm</span>
+                </h3>
+                <div class="grid grid-cols-2 gap-3">
+                  <!-- 荷台長さ -->
+                  <div>
+                    <label for="input-truckW" class="block text-[11px] font-bold text-slate-600 mb-0.5">荷台の長さ</label>
+                    <div class="flex items-center gap-1">
+                      <input type="number" id="input-truckW" value="6000" min="1000" max="15000" step="100" class="w-full px-2 py-1 border border-slate-300 rounded text-xs font-bold focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                      <span class="text-[10px] text-slate-400">mm</span>
+                    </div>
+                    <input type="range" id="range-truckW" min="2000" max="12000" step="100" value="6000" class="w-full mt-1.5 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                  </div>
+
+                  <!-- 荷台幅 -->
+                  <div>
+                    <label for="input-truckH" class="block text-[11px] font-bold text-slate-600 mb-0.5">荷台の幅</label>
+                    <div class="flex items-center gap-1">
+                      <input type="number" id="input-truckH" value="2200" min="500" max="5000" step="50" class="w-full px-2 py-1 border border-slate-300 rounded text-xs font-bold focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                      <span class="text-[10px] text-slate-400">mm</span>
+                    </div>
+                    <input type="range" id="range-truckH" min="1000" max="4000" step="50" value="2200" class="w-full mt-1.5 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <!-- 判定実行ボタン -->
+          <button type="button" id="btn-judge" class="w-full mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md shadow-blue-500/10 transition-all transform hover:-translate-y-0.5 active:translate-y-0 focus:outline-none flex justify-center items-center gap-2 text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            積載適否の判定を実行
+          </button>
+        </div>
+
+        <!-- 右側：覆工板単体形状プレビュー (12分の7幅、大きく表示) -->
+        <div class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 flex flex-col justify-between min-h-[350px]">
+          <div class="flex justify-between items-center mb-2.5 border-b border-slate-100 pb-2.5">
+            <h3 class="text-md font-bold text-slate-900 flex items-center gap-2">
+              <span class="w-1.5 h-5 bg-blue-500 rounded-full"></span>覆工板単体形状プレビュー
+            </h3>
+            <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded tracking-wider">リアルタイム表示</span>
+          </div>
+          <!-- プレビュー描画コンテナ：極限まで余白を削減した大きいSVGプレビュー -->
+          <div class="flex-grow border border-dashed border-slate-200 rounded-xl bg-slate-50/50 p-2 flex items-center justify-center relative overflow-hidden" id="preview-container">
+            <svg id="preview-svg" class="w-full h-full min-h-[220px]" viewBox="0 0 350 180" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ==================== 下部セクション：判定結果とトラック荷姿検討図（平面図） ==================== -->
+      <section id="result-section" class="w-full">
+        
+        <!-- 判定前プレースホルダー -->
+        <div id="result-placeholder" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 flex flex-col items-center justify-center text-center min-h-[250px]">
+          <div class="bg-slate-50 p-4 rounded-full mb-3 border border-slate-100 animate-pulse">
+            <svg class="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a1 1 0 01-1 1z"></path>
+            </svg>
+          </div>
+          <h3 class="text-md font-bold text-slate-700">判定結果と荷姿平面図はここに表示されます</h3>
+          <p class="text-xs text-slate-500 max-w-sm mt-1.5">
+            「積載適否の判定を実行」ボタンを押すと、自動的に3段階の回転シミュレーションを行い、トラック全体が画面いっぱいに描画されます。
+          </p>
+        </div>
+
+        <!-- 判定結果本体 (初期非表示) -->
+        <div id="result-wrapper" class="hidden space-y-5">
+          
+          <!-- 注意警告メッセージ表示スペース -->
+          <div id="warning-box" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex gap-3">
+            <svg class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <div class="text-xs text-amber-900 font-medium space-y-0.5" id="warning-text"></div>
+          </div>
+
+          <!-- 判定結果看板 -->
+          <div id="result-card" class="rounded-2xl p-5 border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+            <div>
+              <span class="text-[10px] font-bold tracking-wider uppercase opacity-85" id="result-badge-label">判定結果</span>
+              <h3 class="text-xl md:text-2xl font-black mt-0.5" id="result-title">---</h3>
+              <p class="text-xs text-slate-600 mt-0.5" id="result-desc">---</p>
+            </div>
+            <!-- PDF出力ボタン -->
+            <button type="button" id="btn-pdf" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-5 rounded-xl shadow-md transition-all flex items-center gap-2 text-xs self-stretch md:self-auto justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+              </svg>
+              A4印刷・PDF出力する
+            </button>
+          </div>
+
+          <!-- 荷姿図描画エリア (1カラム全幅配置で、横長トラックを最大表示) -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6 flex flex-col">
+            <h4 class="text-sm font-bold text-slate-900 mb-3.5 flex items-center justify-between border-b border-slate-50 pb-2">
+              <span class="flex items-center gap-2"><span class="w-1.5 h-4 bg-indigo-500 rounded-full"></span>トラック荷姿検討図 (平面図)</span>
+              <span class="text-[10px] font-bold text-slate-500">※単位: mm (縮尺は描画内全体最適化)</span>
+            </h4>
+            <!-- SVGの高さを横長に合わせてワイドに再設計。w-full h-auto で可変に対応 -->
+            <div class="w-full border border-slate-100 rounded-xl bg-slate-50/50 p-2 flex items-center justify-center relative overflow-hidden">
+              <svg id="result-svg" class="w-full h-auto max-h-[320px]" viewBox="0 0 900 320" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- フッター -->
+    <footer class="bg-slate-100 border-t border-slate-200 py-3 px-6 text-center text-[11px] text-slate-500">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-1.5">
+        <p>© 2026 覆工板トラック積載可否判定システム. All Rights Reserved.</p>
+        <p class="text-slate-400">本システムはローカルHTMLファイルとして単独動作する設計になっています。</p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ==================== 印刷・PDF出力専用の隠しレイアウト（A4縦に完全最適化） ==================== -->
+  <div class="print-only hidden w-[190mm] min-h-[277mm] bg-white p-4 mx-auto text-black">
+    <!-- レポートヘッダー -->
+    <div class="border-b-2 border-slate-900 pb-2 mb-4">
+      <div class="flex justify-between items-end">
+        <div>
+          <h1 class="text-xl font-black tracking-wide text-slate-900">覆工板トラック積載適否検討書</h1>
+          <p class="text-[9px] text-slate-500">Plate Loading Analysis Report</p>
+        </div>
+        <div class="text-right text-[10px]">
+          <p>検討日: <span id="print-date">----/--/--</span></p>
+          <p class="mt-0.5">検討者: ________________________ (印)</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 判定結果サマリー -->
+    <div id="print-result-card" class="border rounded-lg p-3.5 mb-4">
+      <p class="text-[9px] font-bold text-slate-500 uppercase">総合判定結果</p>
+      <h2 id="print-result-title" class="text-base font-extrabold mt-0.5">---</h2>
+      <p id="print-result-desc" class="text-xs text-slate-600 mt-0.5">---</p>
+    </div>
+
+    <!-- 寸法データ比較テーブル -->
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <!-- トラック -->
+      <div class="border rounded-lg p-2.5">
+        <h3 class="text-[10px] font-extrabold text-blue-900 bg-blue-50 px-2 py-0.5 rounded mb-1.5">トラック荷台寸法</h3>
+        <table class="w-full text-xs">
+          <tbody>
+            <tr class="border-b"><td class="py-1 text-slate-500">荷台の長さ:</td><td class="py-1 text-right font-bold"><span id="print-truck-W">---</span> mm</td></tr>
+            <tr><td class="py-1 text-slate-500">荷台の幅:</td><td class="py-1 text-right font-bold"><span id="print-truck-H">---</span> mm</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- 覆工板 -->
+      <div class="border rounded-lg p-2.5">
+        <h3 class="text-[10px] font-extrabold text-blue-900 bg-blue-50 px-2 py-0.5 rounded mb-1.5">覆工板寸法</h3>
+        <table class="w-full text-xs">
+          <tbody>
+            <tr class="border-b"><td class="py-0.5 text-slate-500">長さ L:</td><td class="py-0.5 text-right font-bold"><span id="print-plate-L">---</span> mm</td></tr>
+            <tr class="border-b"><td class="py-0.5 text-slate-500">幅 B1 (上・短辺側):</td><td class="py-0.5 text-right font-bold"><span id="print-plate-B1">---</span> mm</td></tr>
+            <tr class="border-b"><td class="py-0.5 text-slate-500">幅 B2 (下・長辺側):</td><td class="py-0.5 text-right font-bold"><span id="print-plate-B2">---</span> mm</td></tr>
+            <tr class="border-b"><td class="py-0.5 text-slate-500">斜辺長さ d:</td><td class="py-0.5 text-right font-bold"><span id="print-plate-d">---</span> mm</td></tr>
+            <tr><td class="py-0.5 text-slate-500">垂線寸法 a:</td><td class="py-0.5 text-right font-bold"><span id="print-plate-a">---</span> mm</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 荷姿検討図 (印刷用にも最大フィットさせたSVGを配置) -->
+    <div class="border rounded-lg p-3.5 mb-4 flex flex-col">
+      <h3 class="text-xs font-extrabold text-slate-800 mb-2">■ 荷姿検討平面図 (縮尺自動最適化)</h3>
+      <div class="border border-slate-100 rounded bg-slate-50/50 p-1 flex items-center justify-center min-h-[220px]" id="print-svg-container">
+        <!-- JavaScriptでここにSVGをコピー挿入 -->
+      </div>
+    </div>
+
+    <!-- 注意事項・警告等 -->
+    <div id="print-warning-box" class="hidden border border-amber-200 bg-amber-50/50 rounded-lg p-2.5 mb-4">
+      <h4 class="text-[10px] font-extrabold text-amber-800 mb-0.5">【特記事項・警告】</h4>
+      <div id="print-warning-text" class="text-[11px] text-amber-900 leading-relaxed"></div>
+    </div>
+
+    <!-- 免責・システム情報 -->
+    <div class="text-[8px] text-slate-400 mt-auto pt-2 border-t border-dashed">
+      <p>※本検討書は「覆工板トラック積載可否判定システム」により幾何計算（外接長方形及び傾斜幾何モデル）に基づいて自動生成されたものです。現場での実載時には、緊結固定資材や許容積載重量など、各種安全法令（道路交通法等）に従ってください。</p>
+    </div>
+  </div>
+
+
+  <!-- ==================== JavaScript ロジック ==================== -->
+  <script>
+    // --- 便利なSVG汎用関数 ---
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    function createSVGElement(tag, attrs = {}) {
+      const el = document.createElementNS(SVG_NS, tag);
+      for (const [key, val] of Object.entries(attrs)) {
+        el.setAttribute(key, val);
+      }
+      return el;
+    }
+
+    // 線を描画
+    function drawLine(svg, x1, y1, x2, y2, color, width = "1", dash = null) {
+      const attrs = { x1, y1, x2, y2, stroke: color, "stroke-width": width };
+      if (dash) attrs["stroke-dasharray"] = dash;
+      const line = createSVGElement("line", attrs);
+      svg.appendChild(line);
+      return line;
+    }
+
+    // ポリゴンを描画
+    function drawPolygon(svg, points, fill, stroke, strokeWidth = "1") {
+      const pointsStr = points.map(p => `${p[0]},${p[1]}`).join(" ");
+      const poly = createSVGElement("polygon", { points: pointsStr, fill, stroke, "stroke-width": strokeWidth });
+      svg.appendChild(poly);
+      return poly;
+    }
+
+    // 円を描画
+    function drawCircle(svg, cx, cy, r, fill, stroke, strokeWidth = "1", dash = null) {
+      const attrs = { cx, cy, r, fill, stroke, "stroke-width": strokeWidth };
+      if (dash) attrs["stroke-dasharray"] = dash;
+      const circ = createSVGElement("circle", attrs);
+      svg.appendChild(circ);
+      return circ;
+    }
+
+    // テキストを描画
+    function drawText(svg, x, y, str, color = "black", size = "11px", anchor = "middle", weight = "normal", rotate = 0, rx = 0, ry = 0) {
+      const attrs = {
+        x, y,
+        fill: color,
+        "font-size": size,
+        "font-family": "sans-serif",
+        "text-anchor": anchor,
+        "font-weight": weight
+      };
+      if (rotate) {
+        attrs["transform"] = `rotate(${rotate} ${rx} ${ry})`;
+      }
+      const text = createSVGElement("text", attrs);
+      text.textContent = str;
+      svg.appendChild(text);
+      return text;
+    }
+
+    // 直角マークを傾きを考慮して描画
+    function drawRightAngle(svg, px, py, ux, uy, nx, ny, size = 10, color = "#4b5563") {
+      const p1x = px + size * ux;
+      const p1y = py + size * uy;
+      const p2x = px + size * ux + size * nx;
+      const p2y = py + size * uy + size * ny;
+      const p3x = px + size * nx;
+      const p3y = py + size * ny;
+
+      const pathData = `M ${p1x} ${p1y} L ${p2x} ${p2y} L ${p3x} ${p3y}`;
+      const path = createSVGElement("path", { d: pathData, fill: "none", stroke: color, "stroke-width": "0.8" });
+      svg.appendChild(path);
+    }
+
+    // 寸法線を引く (引き出し線付き。飛び出さないように調整)
+    function drawDimension(svg, x1, y1, x2, y2, text, offset = 20, color = "#4b5563", showArrows = true) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len === 0) return;
+
+      // 法線ベクトル (外側を向くように調整)
+      let nx = -dy / len;
+      let ny = dx / len;
+
+      // 寸法線の配置座標
+      const lx1 = x1 + nx * offset;
+      const ly1 = y1 + ny * offset;
+      const lx2 = x2 + nx * offset;
+      const ly2 = y2 + ny * offset;
+
+      // 細い引き出し線
+      drawLine(svg, x1 + nx * 2, y1 + ny * 2, lx1 + nx * 2, ly1 + ny * 2, "#94a3b8", "0.8", "1,2");
+      drawLine(svg, x2 + nx * 2, y2 + ny * 2, lx2 + nx * 2, ly2 + ny * 2, "#94a3b8", "0.8", "1,2");
+
+      // 寸法線
+      const markerStartId = color === "#ef4444" ? "arrow-start-red" : "arrow-start-gray";
+      const markerEndId = color === "#ef4444" ? "arrow-end-red" : "arrow-end-gray";
+
+      const line = drawLine(svg, lx1, ly1, lx2, ly2, color, "1");
+      if (showArrows) {
+        line.setAttribute("marker-start", `url(#${markerStartId})`);
+        line.setAttribute("marker-end", `url(#${markerEndId})`);
+      }
+
+      // テキスト
+      const mx = (lx1 + lx2) / 2;
+      const my = (ly1 + ly2) / 2;
+
+      let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      if (angle > 90 || angle < -90) angle += 180; // 逆さま防止
+
+      // 少し上側にずらす
+      const tx = mx - nx * 5;
+      const ty = my - ny * 5;
+
+      drawText(svg, tx, ty, text, color, "9px", "middle", "bold", angle, tx, ty);
+    }
+
+    // --- 双方向バインド & イベント初期化 ---
+    const ids = ["L", "B1", "B2", "truckW", "truckH"];
+    
+    ids.forEach(id => {
+      const input = document.getElementById(`input-${id}`);
+      const range = document.getElementById(`range-${id}`);
+      
+      // 入力値同期
+      input.addEventListener("input", () => {
+        range.value = input.value;
+        validateAndSync();
+      });
+      range.addEventListener("input", () => {
+        input.value = range.value;
+        validateAndSync();
+      });
+    });
+
+    function validateAndSync() {
+      const B1 = parseFloat(document.getElementById("input-B1").value);
+      const B2 = parseFloat(document.getElementById("input-B2").value);
+      const errorEl = document.getElementById("b1b2-error");
+      const btn = document.getElementById("btn-judge");
+
+      if (B1 > B2) {
+        errorEl.textContent = "※入力警告: 幅 B1 は B2 以下の値（B1 ≦ B2）を入力してください。";
+        errorEl.classList.remove("hidden");
+        btn.disabled = true;
+        btn.classList.add("opacity-50", "cursor-not-allowed");
+      } else {
+        errorEl.classList.add("hidden");
+        btn.disabled = false;
+        btn.classList.remove("opacity-50", "cursor-not-allowed");
+      }
+
+      // リアルタイムプレビュー更新
+      updateRealtimePreview();
+      // 結果を非表示にする
+      hideResult();
+    }
+
+    function hideResult() {
+      document.getElementById("result-placeholder").classList.remove("hidden");
+      document.getElementById("result-wrapper").classList.add("hidden");
+    }
+
+    // --- 1) 覆工板のリアルタイム単体プレビュー (余白を最小化して超拡大) ---
+    function updateRealtimePreview() {
+      const svg = document.getElementById("preview-svg");
+      svg.innerHTML = ""; // クリア
+
+      // マーカー定義
+      const defs = createSVGElement("defs");
+      defs.innerHTML = `
+        <marker id="arrow-start-gray" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 10 0 L 0 5 L 10 10 z" fill="#4b5563" />
+        </marker>
+        <marker id="arrow-end-gray" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#4b5563" />
+        </marker>
+        <pattern id="preview-hatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#3b82f6" stroke-width="0.8" opacity="0.3" />
+        </pattern>
+      `;
+      svg.appendChild(defs);
+
+      const L = parseFloat(document.getElementById("input-L").value);
+      const B1 = parseFloat(document.getElementById("input-B1").value);
+      const B2 = parseFloat(document.getElementById("input-B2").value);
+
+      // 極限まで大きく表示するためのスケール設定
+      const svgW = 350;
+      const svgH = 180;
+      
+      // 覆工板の外接領域
+      const logicW = L;
+      const logicH = Math.max(B1, B2);
+
+      // 余白(マージン)を最小化（寸法線を描くスペース25pxのみ確保）
+      const padX = 25;
+      const padY = 25;
+
+      const drawW = svgW - padX * 2;
+      const drawH = svgH - padY * 2;
+
+      // 入力値のサイズにかかわらず、描画領域いっぱいに自動拡大するスケール
+      const scale = Math.min(drawW / logicW, drawH / logicH);
+
+      // 中央揃えの基準座標
+      const originX = padX + (drawW - L * scale) / 2;
+      const originY = padY + (drawH - Math.max(B1, B2) * scale) / 2;
+
+      // 各頂点座標（直角を左上[P1]と右上[P2]に持つ台形。下側に広がる）
+      const p1 = [originX, originY];
+      const p2 = [originX + L * scale, originY];
+      const p3 = [originX + L * scale, originY + B2 * scale];
+      const p4 = [originX, originY + B1 * scale];
+
+      // 斜辺dと垂線aの計算
+      const d = Math.sqrt(L*L + (B2-B1)*(B2-B1));
+      const a = (L * B2) / d;
+
+      // 垂線の足H
+      const p = (L*L - B1*(B2-B1))/d;
+      const hx = originX + (p * L/d) * scale;
+      const hy = originY + (B1 + p * (B2-B1)/d) * scale;
+
+      // 覆工板描画 (ポリゴン)
+      drawPolygon(svg, [p1, p2, p3, p4], "url(#preview-hatch)", "#2563eb", "1.5");
+
+      // 直角マーク
+      drawRightAngle(svg, p1[0], p1[1], 1, 0, 0, 1, 6, "#94a3b8");
+      drawRightAngle(svg, p2[0], p2[1], -1, 0, 0, 1, 6, "#94a3b8");
+
+      // 垂線aと直角マーク (B2 > B1 のときのみ)
+      if (B2 > B1) {
+        drawLine(svg, p2[0], p2[1], hx, hy, "#10b981", "1", "2,2");
+        const ux = L/d;
+        const uy = (B2-B1)/d;
+        const nx = -uy;
+        const ny = ux;
+        drawRightAngle(svg, hx, hy, -ux, -uy, nx, ny, 6, "#10b981");
+        
+        // 垂線aのラベル
+        drawText(svg, (p2[0] + hx)/2 - 10, (p2[1] + hy)/2 + 3, `a=${Math.round(a)}`, "#059669", "9px", "end", "bold");
+      }
+
+      // 寸法線
+      drawDimension(svg, p1[0], p1[1], p2[0], p2[1], `L = ${Math.round(L)}`, 12);
+      drawDimension(svg, p4[0], p4[1], p1[0], p1[1], `B1 = ${Math.round(B1)}`, 12);
+      drawDimension(svg, p2[0], p2[1], p3[0], p3[1], `B2 = ${Math.round(B2)}`, 12);
+    }
+
+    // --- 2) 積載可否の判定ロジック & 結果描画 ---
+    document.getElementById("btn-judge").addEventListener("click", runJudge);
+
+    function runJudge() {
+      const L = parseFloat(document.getElementById("input-L").value);
+      const B1 = parseFloat(document.getElementById("input-B1").value);
+      const B2 = parseFloat(document.getElementById("input-B2").value);
+      const W_truck = parseFloat(document.getElementById("input-truckW").value);
+      const H_truck = parseFloat(document.getElementById("input-truckH").value);
+
+      // 注意メッセージ判定
+      let warnings = [];
+      if (B1 < 500 || B2 < 500) {
+        warnings.push("覆工板の幅が基準の最小幅500mmを満たしていません。");
+      }
+      if (B1 > 2200 || B2 > 2200) {
+        warnings.push("覆工板の幅が基準の最大幅2200mmを超えています。トラックに積載可能か確認が必要です。");
+      }
+
+      // 注意ボックスの制御
+      const warningBox = document.getElementById("warning-box");
+      const warningText = document.getElementById("warning-text");
+      if (warnings.length > 0) {
+        warningBox.classList.remove("hidden");
+        warningText.innerHTML = warnings.map(w => `<p>⚠️ ${w}</p>`).join("");
+      } else {
+        warningBox.classList.add("hidden");
+      }
+
+      // 斜辺dと垂線a
+      const d = Math.sqrt(L*L + (B2-B1)*(B2-B1));
+      const a = (L * B2) / d;
+
+      let resultState = ""; // case1, case2, case3, impossible
+      let title = "";
+      let desc = "";
+      let themeClass = ""; // 背景色変更用
+
+      // 判定処理
+      // 第一段階 (そのまま積載)
+      if (L <= W_truck && B2 <= H_truck) {
+        resultState = "case1";
+        title = "積載可能 (第一段階：そのまま積載)";
+        desc = `覆工板をそのままの向きで荷台に収めることができます。`;
+        themeClass = "bg-emerald-50 border-emerald-200 text-emerald-900";
+      }
+      // 第二段階 (90度回転)
+      else if (B2 <= W_truck && L <= H_truck) {
+        resultState = "case2";
+        title = "積載可能 (第二段階：90度回転)";
+        desc = `覆工板を90度回転させることで、荷台に積むことができます。`;
+        themeClass = "bg-teal-50 border-teal-200 text-teal-900";
+      }
+      // 第三段階 (斜辺に平行に傾ける)
+      else if (d <= W_truck && a <= H_truck) {
+        resultState = "case3";
+        title = "積載可能 (第三段階：斜辺を長さ方向に配置)";
+        desc = `覆工板の長辺(斜辺)をトラック荷台の長さ方向に傾けて配置することで積載可能です。`;
+        themeClass = "bg-blue-50 border-blue-200 text-blue-900";
+      }
+      // 積載不可
+      else {
+        resultState = "impossible";
+        title = "積載不可 (はみ出します)";
+        desc = `3つの積載パターン(そのまま、90度回転、傾き配置)のすべてで荷台から「はみ出す」ため積載できません。`;
+        themeClass = "bg-rose-50 border-rose-200 text-rose-900";
+      }
+
+      // UI表示の切り替え
+      document.getElementById("result-placeholder").classList.add("hidden");
+      const resultWrapper = document.getElementById("result-wrapper");
+      resultWrapper.classList.remove("hidden");
+
+      // 看板の更新
+      const card = document.getElementById("result-card");
+      card.className = `rounded-2xl p-5 border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm ${themeClass}`;
+      document.getElementById("result-title").textContent = title;
+      document.getElementById("result-desc").textContent = desc;
+
+      // 荷姿図描画
+      drawResultSVG("result-svg", resultState, L, B1, B2, W_truck, H_truck, d, a);
+
+      // --- 印刷用隠しエリアへの値同期 ---
+      document.getElementById("print-result-card").className = `border rounded-lg p-3.5 mb-4 ${themeClass}`;
+      document.getElementById("print-result-title").textContent = title;
+      document.getElementById("print-result-desc").textContent = desc;
+
+      document.getElementById("print-truck-W").textContent = Math.round(W_truck);
+      document.getElementById("print-truck-H").textContent = Math.round(H_truck);
+      document.getElementById("print-plate-L").textContent = Math.round(L);
+      document.getElementById("print-plate-B1").textContent = Math.round(B1);
+      document.getElementById("print-plate-B2").textContent = Math.round(B2);
+      document.getElementById("print-plate-d").textContent = Math.round(d);
+      document.getElementById("print-plate-a").textContent = Math.round(a);
+
+      // 印刷用特記事項警告
+      const printWarningBox = document.getElementById("print-warning-box");
+      const printWarningText = document.getElementById("print-warning-text");
+      if (warnings.length > 0) {
+        printWarningBox.classList.remove("hidden");
+        printWarningText.innerHTML = warnings.map(w => `<p>⚠️ ${w}</p>`).join("");
+      } else {
+        printWarningBox.classList.add("hidden");
+      }
+
+      // 印刷用のSVGコンテナをクリアしてクローンを挿入
+      const printContainer = document.getElementById("print-svg-container");
+      printContainer.innerHTML = "";
+      const clonedSVG = document.getElementById("result-svg").cloneNode(true);
+      clonedSVG.setAttribute("id", "print-result-svg");
+      clonedSVG.setAttribute("class", "w-[100%] h-auto max-h-[300px]");
+      printContainer.appendChild(clonedSVG);
+    }
+
+    // --- 3) 荷姿図 SVGの描画（キャビンや寸法線が絶対切れない新自動縮尺モデル） ---
+    function drawResultSVG(svgId, state, L, B1, B2, W_truck, H_truck, d, a) {
+      const svg = document.getElementById(svgId);
+      svg.innerHTML = ""; // クリア
+
+      // マーカー・ハッチパターンの定義
+      const defs = createSVGElement("defs");
+      defs.innerHTML = `
+        <marker id="arrow-start-gray" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 10 0 L 0 5 L 10 10 z" fill="#64748b" />
+        </marker>
+        <marker id="arrow-end-gray" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+        </marker>
+        <marker id="arrow-start-red" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 10 0 L 0 5 L 10 10 z" fill="#ef4444" />
+        </marker>
+        <marker id="arrow-end-red" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+        </marker>
+        <pattern id="hatch-ok" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="10" stroke="#3b82f6" stroke-width="1.2" />
+        </pattern>
+        <pattern id="hatch-ng" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="10" stroke="#ef4444" stroke-width="1.2" opacity="0.6" />
+        </pattern>
+      `;
+      svg.appendChild(defs);
+
+      // SVGのアスペクトサイズ
+      const svgW = 900;
+      const svgH = 320;
+
+      // 【物理的な切切れ防止：ミリメートル論理座標系によるマージン設計】
+      // 1. 横（X）方向の必要スペース
+      // 左側：キャビン部分（約900mm）＋ 連結隙間（約200mm）＝ 1100mm 確保
+      // 右側：右端の寸法線を安全に描くマージン ＝ 600mm 確保
+      // よって論理最大幅 = W_truck + 1700
+      const logicalW = W_truck + 1700;
+
+      // 2. 縦（Y）方向の必要スペース
+      // 荷台の上側の寸法線スペース ＝ 400mm
+      // 荷台の下側の寸法線スペース ＝ 500mm
+      // 覆工板が上に飛び出す（積載不可などのとき）最大量は、斜辺を底にしたとき (H_truck - a)。
+      // これを包摂するように、論理的な最小Yと最大Yを決定する。
+      const minY = Math.min(0, H_truck - a) - 400; // 上端（飛び出し含む）- 寸法線引き出しスペース
+      const maxY = H_truck + 500;                  // 下端 - 荷台長さ寸法線スペース
+      const logicalH = maxY - minY;
+
+      // 3. SVGへの縮尺（スケール）計算
+      const padX = 15; // 物理パディング(px)
+      const padY = 15;
+      const scale = Math.min((svgW - padX * 2) / logicalW, (svgH - padY * 2) / logicalH);
+
+      // 4. 荷台の左上を基準点とする、SVG上の座標 [truckX, truckY]
+      // キャビンの1100mm分を左側にシフトして、論理X=1100を荷台の左端とする
+      const truckX = padX + (svgW - padX * 2 - logicalW * scale) / 2 + 1100 * scale;
+      const truckY = padY + (svgH - padY * 2 - logicalH * scale) / 2 + (0 - minY) * scale;
+
+      const truckW_px = W_truck * scale;
+      const truckH_px = H_truck * scale;
+
+      // --- 1. トラック運転席 (キャビン) の描画 ---
+      // 荷台の左側に切れることなく自動伸縮してくっつくキャビン
+      const cabW = 900 * scale;
+      const cabH = truckH_px * 0.95;
+      const cabX = truckX - cabW - (200 * scale); // 200mm隙間
+      const cabY = truckY + (truckH_px - cabH) / 2;
+
+      // キャビン本体
+      drawPolygon(svg, [
+        [cabX, cabY + cabH * 0.2], // 傾斜のついたフロント
+        [cabX + cabW * 0.4, cabY],
+        [cabX + cabW, cabY],
+        [cabX + cabW, cabY + cabH],
+        [cabX, cabY + cabH]
+      ], "#f1f5f9", "#475569", "1.5");
+
+      // 窓
+      drawPolygon(svg, [
+        [cabX + cabW * 0.15, cabY + cabH * 0.22],
+        [cabX + cabW * 0.4, cabY + cabH * 0.08],
+        [cabX + cabW * 0.8, cabY + cabH * 0.08],
+        [cabX + cabW * 0.8, cabY + cabH * 0.55],
+        [cabX + cabW * 0.35, cabY + cabH * 0.55]
+      ], "#94a3b8", "#475569", "1");
+
+      // バンパー
+      drawPolygon(svg, [
+        [cabX - 10 * scale, cabY + cabH - 12 * scale],
+        [cabX + 15 * scale, cabY + cabH - 12 * scale],
+        [cabX + 15 * scale, cabY + cabH],
+        [cabX - 10 * scale, cabY + cabH]
+      ], "#334155", "#1e293b", "1");
+
+      // --- 2. トラック荷台（長方形）の描画 ---
+      // 荷台の床（太線）
+      createSVGElement("rect", {
+        x: truckX, y: truckY, width: truckW_px, height: truckH_px,
+        fill: "#f8fafc", stroke: "#1e293b", "stroke-width": "2.5"
+      });
+      svg.appendChild(createSVGElement("rect", {
+        x: truckX, y: truckY, width: truckW_px, height: truckH_px,
+        fill: "none", stroke: "#94a3b8", "stroke-width": "1"
+      }));
+
+      // --- 3. 覆工板の座標計算と描画 ---
+      let pts = []; 
+      const isImpossible = (state === "impossible");
+      const hatchPattern = isImpossible ? "url(#hatch-ng)" : "url(#hatch-ok)";
+      const strokeColor = isImpossible ? "#ef4444" : "#2563eb";
+
+      // 第一段階 (そのまま積載)
+      if (state === "case1") {
+        const p1 = [truckX, truckY];
+        const p2 = [truckX + L * scale, truckY];
+        const p3 = [truckX + L * scale, truckY + B2 * scale];
+        const p4 = [truckX, truckY + B1 * scale];
+        pts = [p1, p2, p3, p4];
+
+        drawPolygon(svg, pts, hatchPattern, strokeColor, "1.8");
+
+        // 直角マーク
+        drawRightAngle(svg, p1[0], p1[1], 1, 0, 0, 1, 8, "#64748b");
+        drawRightAngle(svg, p2[0], p2[1], -1, 0, 0, 1, 8, "#64748b");
+
+        // 覆工板寸法線（はみ出し・カブりなし）
+        drawDimension(svg, p1[0], p1[1], p2[0], p2[1], `L=${Math.round(L)}`, -15, strokeColor);
+        drawDimension(svg, p4[0], p4[1], p1[0], p1[1], `B1=${Math.round(B1)}`, -15, strokeColor);
+        drawDimension(svg, p2[0], p2[1], p3[0], p3[1], `B2=${Math.round(B2)}`, 15, strokeColor);
+      }
+      // 第二段階 (90度回転)
+      else if (state === "case2") {
+        // 90度回転：上辺B2、左辺L、右辺B1
+        const p1 = [truckX, truckY];
+        const p2 = [truckX + B2 * scale, truckY];
+        const p3 = [truckX + B2 * scale, truckY + B1 * scale];
+        const p4 = [truckX, truckY + L * scale];
+        pts = [p1, p2, p3, p4];
+
+        drawPolygon(svg, pts, hatchPattern, strokeColor, "1.8");
+
+        // 直角マーク
+        drawRightAngle(svg, p1[0], p1[1], 1, 0, 0, 1, 8, "#64748b");
+        drawRightAngle(svg, p2[0], p2[1], -1, 0, 0, 1, 8, "#64748b");
+
+        // 覆工板寸法線
+        drawDimension(svg, p1[0], p1[1], p2[0], p2[1], `B2=${Math.round(B2)}`, -15, strokeColor);
+        drawDimension(svg, p2[0], p2[1], p3[0], p3[1], `B1=${Math.round(B1)}`, 15, strokeColor);
+        drawDimension(svg, p4[0], p4[1], p1[0], p1[1], `L=${Math.round(L)}`, -15, strokeColor);
+      }
+      // 第三段階 (ケース3-3：斜辺を長さ方向にする回転モデル) または 積載不可
+      else if (state === "case3" || state === "impossible") {
+        const theta = Math.atan2(B2 - B1, L);
+        
+        // 覆工板の底(斜辺d)をトラック荷台の下辺に載せる
+        const xStart = truckX + (truckW_px - d * scale) / 2;
+        const yBase = truckY + truckH_px; // 下辺基準
+
+        // 頂点座標の計算
+        const p4 = [xStart, yBase];
+        const p3 = [xStart + d * scale, yBase];
+
+        // 右上角 P2'' (斜辺を底にした時の高さが a。右端 P3 から水平に戻る)
+        const backP2 = (B2 * (B2 - B1) / d) * scale;
+        const p2 = [p3[0] - backP2, yBase - a * scale];
+
+        // 左上角 P1'' (高さ B1*L/d、水平に戻る)
+        const backP1 = (B1 * (B2 - B1) / d) * scale;
+        const h1 = (B1 * L / d) * scale;
+        const p1 = [p4[0] - backP1, yBase - h1];
+
+        pts = [p1, p2, p3, p4];
+
+        // 覆工板描画
+        drawPolygon(svg, pts, hatchPattern, strokeColor, "1.8");
+
+        // 元の左上P1, 右上P2の直角マーク
+        const ux = Math.cos(theta);
+        const uy = Math.sin(theta);
+        drawRightAngle(svg, p1[0], p1[1], ux, uy, -uy, ux, 8, "#64748b");
+        drawRightAngle(svg, p2[0], p2[1], -ux, -uy, -uy, ux, 8, "#64748b");
+
+        // 垂線aの描画（斜辺に対して垂直に引く）
+        const hx = p3[0] - backP2;
+        const hy = yBase;
+        drawLine(svg, p2[0], p2[1], hx, hy, "#10b981", "1.2", "3,3");
+        drawRightAngle(svg, hx, hy, -ux, -uy, -uy, ux, 8, "#10b981");
+
+        // 寸法線
+        drawDimension(svg, p1[0], p1[1], p2[0], p2[1], `L=${Math.round(L)}`, -15, strokeColor);
+        drawDimension(svg, p4[0], p4[1], p1[0], p1[1], `B1=${Math.round(B1)}`, -15, strokeColor);
+        drawDimension(svg, p2[0], p2[1], p3[0], p3[1], `B2=${Math.round(B2)}`, 15, strokeColor);
+        drawDimension(svg, p2[0], p2[1], hx, hy, `a=${Math.round(a)}`, 15, "#10b981", false);
+
+        // 積載不可（はみ出す）時の赤丸表示
+        if (isImpossible) {
+          // 左側はみ出し
+          if (p1[0] < truckX) {
+            drawCircle(svg, p1[0], p1[1], 12, "none", "#ef4444", "1.5", "3,3");
+            drawLine(svg, p1[0], p1[1] + 12, p1[0] - 15, p1[1] + 30, "#ef4444", "0.8");
+            drawText(svg, p1[0] - 15, p1[1] + 39, "はみ出す", "#ef4444", "9px", "middle", "bold");
+          }
+          // 右側はみ出し
+          if (p3[0] > truckX + truckW_px) {
+            drawCircle(svg, p3[0], p3[1], 12, "none", "#ef4444", "1.5", "3,3");
+            drawLine(svg, p3[0], p3[1] - 12, p3[0] + 15, p3[1] - 30, "#ef4444", "0.8");
+            drawText(svg, p3[0] + 15, p3[1] - 34, "はみ出す", "#ef4444", "9px", "middle", "bold");
+          }
+          // 上側はみ出し
+          if (p2[1] < truckY) {
+            drawCircle(svg, p2[0], p2[1], 12, "none", "#ef4444", "1.5", "3,3");
+            drawLine(svg, p2[0], p2[1] + 12, p2[0], p2[1] + 30, "#ef4444", "0.8");
+            drawText(svg, p2[0], p2[1] + 39, "はみ出す", "#ef4444", "9px", "middle", "bold");
+          }
+        }
+      }
+
+      // --- 4. トラック荷台の寸法線の描画 (マージンにピッタリ収まるオフセット) ---
+      // 荷台の長さ W_truck (下側 350mm論理オフセット)
+      drawDimension(svg, truckX, truckY + truckH_px, truckX + truckW_px, truckY + truckH_px, `荷台長さ = ${Math.round(W_truck)}`, 350 * scale, "#475569");
+      
+      // 荷台の幅 H_truck (右側 400mm論理オフセット)
+      drawDimension(svg, truckX + truckW_px, truckY + truckH_px, truckX + truckW_px, truckY, `荷台幅 = ${Math.round(H_truck)}`, 400 * scale, "#475569");
+    }
+
+    // --- 4) PDF印刷ボタン制御 ---
+    document.getElementById("btn-pdf").addEventListener("click", () => {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      document.getElementById("print-date").textContent = `${y}年${m}月${d}日`;
+      window.print();
+    });
+
+    // 起動時の初期化
+    window.onload = function() {
+      updateRealtimePreview();
+    };
+  </script>
+</body>
+</html>
