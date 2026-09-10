@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PG0型応力度照査アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        .card {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4b5563;
+            margin-bottom: 0.25rem;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            ring: 2px;
+            ring-color: #93c5fd;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+        th, td {
+            border: 1px solid #d1d5db;
+            padding: 0.5rem;
+            text-align: center;
+        }
+        th {
+            background-color: #f9fafb;
+            font-weight: 600;
+        }
+        .text-left { text-align: left; }
+        .text-right { text-align: right; }
+        
+        /* PDF Export Styles */
+        #result-container {
+            background-color: white;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+        
+        /* PDF出力時の縮小用スタイル（2ページに収めるため） */
+        .pdf-mode {
+            font-size: 0.75rem;
+        }
+        .pdf-mode h3 {
+            font-size: 1rem;
+            margin-top: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+        .pdf-mode table {
+            margin-bottom: 0.5rem;
+        }
+        .pdf-mode th, .pdf-mode td {
+            padding: 0.25rem;
+        }
+        .pdf-mode .p-8 {
+            padding: 1.5rem !important;
+        }
+        .pdf-mode .mt-6 {
+            margin-top: 0.75rem !important;
+        }
+        .pdf-mode .mb-6 {
+            margin-bottom: 0.5rem !important;
+        }
+        .pdf-mode .gap-4 {
+            gap: 0.5rem !important;
+        }
+        .pdf-mode .p-4 {
+            padding: 0.5rem !important;
+        }
+        /* PDF出力時の2ページ目上部余白調整をより強力に設定 */
+        .pdf-mode #tbl-influence {
+            margin-bottom: 0 !important;
+        }
+        .pdf-mode #section4-title {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        .pdf-mode .page-break {
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold text-center text-blue-700 mb-8">PG0型応力度照査アプリ</h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 入力フォームエリア -->
+            <div class="lg:col-span-1">
+                <div class="card">
+                    <h2>計算条件の入力</h2>
+                    <form id="input-form">
+                        
+                        <!-- 桁の種類 -->
+                        <div class="form-group">
+                            <label>桁の種類</label>
+                            <div class="flex space-x-4">
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="girderType" value="400" checked class="form-radio text-blue-600">
+                                    <span class="ml-2">桁高400mm用</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="girderType" value="500" class="form-radio text-blue-600">
+                                    <span class="ml-2">桁高500mm用</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 支間長 -->
+                        <div class="form-group">
+                            <label>支間長 L (m)</label>
+                            <input type="number" id="L" step="0.001" value="6.000" required>
+                        </div>
+
+                        <!-- 死荷重 -->
+                        <div class="bg-gray-50 p-3 rounded-md mb-4 border border-gray-200">
+                            <h3 class="font-semibold text-sm mb-2 text-gray-700">死荷重</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label>桁自重 (kN/m)</label>
+                                    <input type="number" id="deadWeight" step="0.01" value="2.16" required>
+                                </div>
+                                <div>
+                                    <label>雑荷重 (kN/m²)</label>
+                                    <input type="number" id="miscWeight" step="0.001" value="0.000" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- クローラクレーン条件 -->
+                        <div class="bg-gray-50 p-3 rounded-md mb-4 border border-gray-200">
+                            <h3 class="font-semibold text-sm mb-2 text-gray-700">クローラクレーン条件</h3>
+                            <div class="grid grid-cols-2 gap-2 mb-2">
+                                <div>
+                                    <label>車両重量 W (kN)</label>
+                                    <input type="number" id="W" step="1" value="920" required>
+                                </div>
+                                <div>
+                                    <label>吊荷重 T (kN)</label>
+                                    <input type="number" id="T" step="1" value="200" required>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 mb-2">
+                                <div>
+                                    <label>車両長 LL (mm)</label>
+                                    <input type="number" id="LL" step="1" value="5345" required>
+                                </div>
+                                <div>
+                                    <label>クローラ幅 DD (mm)</label>
+                                    <input type="number" id="DD" step="1" value="900" required>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 mb-2">
+                                <div>
+                                    <label>車両幅 LW (mm) <span class="text-xs text-gray-500">※計算には不使用</span></label>
+                                    <input type="number" id="LW" step="1" value="4900" required>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label>分配係数 (側方吊)</label>
+                                    <input type="number" id="distSide" step="0.01" value="0.75" required>
+                                </div>
+                                <div>
+                                    <label>分配係数 (斜方吊)</label>
+                                    <input type="number" id="distDiag" step="0.01" value="0.70" required>
+                                </div>
+                                <div>
+                                    <label>接地係数 (前方吊)</label>
+                                    <input type="number" id="contactFront" step="0.01" value="0.75" required>
+                                </div>
+                                <div>
+                                    <label>接地係数 (斜方吊)</label>
+                                    <input type="number" id="contactDiag" step="0.01" value="0.90" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 衝撃係数・許容割増係数 -->
+                        <div class="grid grid-cols-2 gap-2 mb-4">
+                            <div>
+                                <label>衝撃係数 i</label>
+                                <input type="number" id="impact" step="0.001" value="0.400" required>
+                            </div>
+                            <div>
+                                <label>許容割増係数</label>
+                                <select id="allowableFactor" class="w-full p-2 border border-gray-300 rounded-md text-sm">
+                                    <option value="1.00">1.00</option>
+                                    <option value="1.25">1.25</option>
+                                    <option value="1.50" selected>1.50</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- たわみ設定 -->
+                        <div class="bg-gray-50 p-3 rounded-md mb-6 border border-gray-200">
+                            <h3 class="font-semibold text-sm mb-2 text-gray-700">たわみ許容値設定</h3>
+                            <div class="flex items-center space-x-2 whitespace-nowrap">
+                                <span>L /</span>
+                                <input type="number" id="deflectionN" step="1" value="400" class="w-20" required>
+                            </div>
+                            <div class="mt-2">
+                                <label class="inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="deflectionLimit25" class="form-checkbox text-blue-600 rounded">
+                                    <span class="ml-2 text-sm whitespace-nowrap">かつ25mm以下とする</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="button" id="calcBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-200 shadow-md">
+                            計算実行
+                        </button>
+                        <p class="text-xs text-gray-500 mt-2 text-center">※計算結果の表示に数秒程度の時間が掛かります。</p>
+                        
+                        <div id="error-message" class="text-red-500 font-bold mt-4 text-center hidden"></div>
+
+                    </form>
+                </div>
+            </div>
+
+            <!-- 結果表示エリア -->
+            <div class="lg:col-span-2 hidden" id="result-wrapper">
+                
+                <div class="flex justify-between items-center mb-4">
+                    <div id="overall-judgement" class="text-2xl font-bold px-4 py-2 rounded-md">
+                        <!-- Judgement text will be inserted here -->
+                    </div>
+                    <div class="space-x-2">
+                        <button id="pdfBtn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-md shadow transition duration-200 text-sm font-bold">
+                            PDF出力
+                        </button>
+                        <button id="csvBtn" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md shadow transition duration-200 text-sm font-bold">
+                            CSV出力
+                        </button>
+                    </div>
+                </div>
+
+                <div id="result-container" class="card p-8">
+                    <!-- PDF出力用コンテナ -->
+                    
+                    <h3 class="font-bold text-lg mb-4 text-center">PG0型 H鋼桁 応力度照査報告書</h3>
+                    
+                    <!-- 計算条件 -->
+                    <h3 class="font-bold text-lg mb-2">【計算条件】</h3>
+                    <table class="mb-6">
+                        <tbody>
+                            <tr>
+                                <th class="w-1/4 text-left px-2">桁の種類</th><td class="w-1/4 px-2" id="res-cond-type"></td>
+                                <th class="w-1/4 text-left px-2">支間長 L (m)</th><td class="w-1/4 px-2" id="res-cond-L"></td>
+                            </tr>
+                            <tr>
+                                <th class="text-left px-2">桁自重 (kN/m)</th><td class="px-2" id="res-cond-deadWeight"></td>
+                                <th class="text-left px-2">雑荷重 (kN/m²)</th><td class="px-2" id="res-cond-miscWeight"></td>
+                            </tr>
+                            <tr>
+                                <th class="text-left px-2">車両重量 W (kN)</th><td class="px-2" id="res-cond-W"></td>
+                                <th class="text-left px-2">吊荷重 T (kN)</th><td class="px-2" id="res-cond-T"></td>
+                            </tr>
+                            <tr>
+                                <th class="text-left px-2">車両長 LL (mm)</th><td class="px-2" id="res-cond-LL"></td>
+                                <th class="text-left px-2">車両幅 LW (mm)</th><td class="px-2" id="res-cond-LW"></td>
+                            </tr>
+                            <tr>
+                                <th class="text-left px-2">クローラ幅 DD (mm)</th><td class="px-2" id="res-cond-DD"></td>
+                                <th class="text-left px-2">衝撃係数 i</th><td class="px-2" id="res-cond-impact"></td>
+                            </tr>
+                            <tr>
+                                <th class="text-left px-2">分配係数(側方/斜方)</th><td class="px-2" id="res-cond-dist"></td>
+                                <th class="text-left px-2">接地係数(前方/斜方)</th><td class="px-2" id="res-cond-contact"></td>
+                            </tr>
+                            <tr>
+                                <th class="text-left px-2">許容割増係数</th><td class="px-2" id="res-cond-allowFactor"></td>
+                                <th class="text-left px-2">たわみ許容値設定</th><td class="px-2" id="res-cond-defLimit"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- 1. クローラクレーン積載荷重 -->
+                    <h3 class="font-bold text-lg mb-2">1. クローラクレーンによる積載荷重</h3>
+                    <table id="tbl-crane-load">
+                        <thead>
+                            <tr>
+                                <th>ケース</th>
+                                <th>荷重分布形状</th>
+                                <th>接地長 (m)</th>
+                                <th>シュー荷重 pw または W1, W2 (kN/m²)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+
+                    <!-- 2. 断面性能 -->
+                    <h3 class="font-bold text-lg mt-6 mb-2">2. H形鋼 断面性能</h3>
+                    <table id="tbl-section">
+                        <tbody>
+                            <tr>
+                                <th class="w-1/4">種類・サイズ</th>
+                                <td id="res-sec-size"></td>
+                                <th class="w-1/4">単位重量 (kN/m)</th>
+                                <td id="res-sec-w"></td>
+                            </tr>
+                            <tr>
+                                <th>断面係数 Zx (cm³)</th>
+                                <td id="res-sec-zx"></td>
+                                <th>せん断有効断面積 Aw (mm²)</th>
+                                <td id="res-sec-aw"></td>
+                            </tr>
+                            <tr>
+                                <th>断面二次ﾓｰﾒﾝﾄ Ix (cm⁴)</th>
+                                <td id="res-sec-ix"></td>
+                                <th>弾性係数 E (kN/m²)</th>
+                                <td>2.00 × 10⁸</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- 3. 影響面積 -->
+                    <h3 class="font-bold text-lg mt-6 mb-2">3. 桁1本への影響面積と作用荷重</h3>
+                    <table id="tbl-influence">
+                        <thead>
+                            <tr>
+                                <th>ケース</th>
+                                <th>影響面積 A (m)</th>
+                                <th>桁1本に作用する荷重 Pw1' (kN/m)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+
+                    <!-- 改ページ用 -->
+                    <div class="html2pdf__page-break page-break hidden"></div>
+
+                    <!-- 4. 断面力 -->
+                    <h3 id="section4-title" class="font-bold text-lg mt-6 mb-2">4. 各ケースの断面力計算結果</h3>
+                    <p class="text-sm text-gray-600 mb-0">※載荷位置aは最大曲げモーメント計算時の左支点から荷重左端までの距離</p>
+                    <p class="text-sm text-gray-600 mb-2">※算出位置bは左支点から最大曲げモーメント発生位置までの距離</p>
+                    <table id="tbl-forces">
+                        <thead>
+                            <tr>
+                                <th rowspan="2" class="align-middle">ケース</th>
+                                <th colspan="4">最大曲げモーメント (kN・m)</th>
+                                <th colspan="4">最大せん断力 (kN)</th>
+                                <th rowspan="2" class="align-middle">載荷位置<br>a (m)</th>
+                                <th rowspan="2" class="align-middle">算出位置<br>b (m)</th>
+                            </tr>
+                            <tr>
+                                <th class="text-xs">死荷重 Md</th>
+                                <th class="text-xs">活荷重 ML</th>
+                                <th class="text-xs">衝撃 Mi</th>
+                                <th class="text-xs bg-blue-50 text-blue-900">合計 M</th>
+                                <th class="text-xs">死荷重 Sd</th>
+                                <th class="text-xs">活荷重 SL</th>
+                                <th class="text-xs">衝撃 Si</th>
+                                <th class="text-xs bg-blue-50 text-blue-900">合計 S</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+
+                    <!-- 5. 応力度照査 -->
+                    <h3 class="font-bold text-lg mt-6 mb-2">5. 部材応力度に対する検討</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="border rounded p-4">
+                            <h4 class="font-bold text-blue-800 border-b pb-1 mb-2">曲げ応力度の照査</h4>
+                            <p class="text-sm">最大曲げモーメント発生ケース: <span id="res-mmax-case" class="font-bold"></span></p>
+                            <p class="text-sm">Mmax = <span id="res-mmax" class="font-bold"></span> kN・m</p>
+                            <div class="mt-4 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-gray-500">曲げ応力度 σb = Mmax / Zx</p>
+                                    <p class="text-lg font-bold"><span id="res-sigmab"></span> N/mm²</p>
+                                </div>
+                                <div class="text-xl font-bold text-gray-400">≦</div>
+                                <div>
+                                    <p class="text-xs text-gray-500">許容値 σba (割増考慮)</p>
+                                    <p class="text-lg font-bold"><span id="res-sigmaba"></span> N/mm²</p>
+                                </div>
+                            </div>
+                            <div id="judge-bending" class="mt-4 text-center font-bold text-lg rounded py-1"></div>
+                        </div>
+
+                        <div class="border rounded p-4">
+                            <h4 class="font-bold text-blue-800 border-b pb-1 mb-2">せん断応力度の照査</h4>
+                            <p class="text-sm">最大せん断力発生ケース: <span id="res-smax-case" class="font-bold"></span></p>
+                            <p class="text-sm">Smax = <span id="res-smax" class="font-bold"></span> kN</p>
+                            <div class="mt-4 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-gray-500">せん断応力度 τ = Smax / Aw</p>
+                                    <p class="text-lg font-bold"><span id="res-tau"></span> N/mm²</p>
+                                </div>
+                                <div class="text-xl font-bold text-gray-400">≦</div>
+                                <div>
+                                    <p class="text-xs text-gray-500">許容値 τa (割増考慮)</p>
+                                    <p class="text-lg font-bold"><span id="res-taua"></span> N/mm²</p>
+                                </div>
+                            </div>
+                            <div id="judge-shear" class="mt-4 text-center font-bold text-lg rounded py-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- 6. たわみ照査 -->
+                    <h3 class="font-bold text-lg mt-6 mb-2">6. たわみに対する検討</h3>
+                    <div class="border rounded p-4">
+                        <p class="text-sm">最大たわみ発生ケース (活荷重による曲げモーメント最大): <span id="res-def-case" class="font-bold"></span></p>
+                        <p class="text-sm">たわみ計算用活荷重 ML = <span id="res-def-ml" class="font-bold"></span> kN・m</p>
+                        <div class="mt-4 flex items-center justify-around">
+                            <div>
+                                <p class="text-xs text-gray-500">発生たわみ量 δmax</p>
+                                <p class="text-lg font-bold"><span id="res-delta"></span> m</p>
+                            </div>
+                            <div class="text-xl font-bold text-gray-400">≦</div>
+                            <div>
+                                <p class="text-xs text-gray-500">許容たわみ量 δa</p>
+                                <p class="text-lg font-bold"><span id="res-deltaa"></span> m</p>
+                            </div>
+                        </div>
+                        <div id="judge-deflection" class="mt-4 text-center font-bold text-lg rounded py-1"></div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 断面定義 ---
+        const sections = {
+            '400': {
+                name: 'H400x400x13x21 (SM490)',
+                Zx: 3330,     // cm^3
+                Aw: 4654,     // mm^2
+                Ix: 66600,    // cm^4
+                weight: 2.16, // kN/m
+                B: 0.500      // 荷重幅(m)
+            },
+            '500': {
+                name: 'H500x250x9x19 (SM490)',
+                Zx: 2530,     // cm^3
+                Aw: 4158,     // mm^2
+                Ix: 63100,    // cm^4
+                weight: 1.13, // kN/m
+                B: 0.250      // 荷重幅(m)
+            }
+        };
+
+        const E = 2.00e8; // 弾性係数 kN/m^2
+
+        // --- DOM Elements ---
+        const form = document.getElementById('input-form');
+        const calcBtn = document.getElementById('calcBtn');
+        const resultWrapper = document.getElementById('result-wrapper');
+        const radioGirders = document.getElementsByName('girderType');
+        const inputDeadWeight = document.getElementById('deadWeight');
+        const pdfBtn = document.getElementById('pdfBtn');
+        const csvBtn = document.getElementById('csvBtn');
+        const errorMsg = document.getElementById('error-message');
+
+        // State
+        let calcData = null;
+
+        // --- Event Listeners ---
+        // 桁種類変更で自重を自動更新
+        radioGirders.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                inputDeadWeight.value = sections[e.target.value].weight;
+                hideResults();
+            });
+        });
+
+        // フォーム内の任意の入力変更で結果を非表示にする
+        form.addEventListener('input', hideResults);
+        
+        calcBtn.addEventListener('click', performCalculation);
+        pdfBtn.addEventListener('click', exportPDF);
+        csvBtn.addEventListener('click', exportCSV);
+
+        function hideResults() {
+            resultWrapper.classList.add('hidden');
+            errorMsg.classList.add('hidden');
+        }
+
+        // --- 計算ロジック ---
+        function analyzeMovingLoad(L, Pw1_prime, loadLength, isTriangle) {
+            // 精度向上のため探索ピッチを1mm(0.001m)に変更
+            const step = 0.001; 
+            let maxML = 0, maxSL = 0;
+            let bestA_M = 0, bestB = 0, bestA_S = 0;
+            
+            // 載荷位置xが必ず 0.000 を通るように、ループを整数で管理
+            const numSteps = Math.ceil(loadLength / step);
+            const endStep = Math.ceil(L / step);
+            
+            for (let i = -numSteps; i <= endStep; i++) {
+                let x = i * step;
+                let xs = Math.max(0, x);
+                let xe = Math.min(L, x + loadLength);
+                if (xs >= xe) continue;
+                
+                let C1 = 0, C0 = Pw1_prime;
+                if (isTriangle) {
+                    C1 = -Pw1_prime / loadLength;
+                    C0 = Pw1_prime * (1 + x / loadLength);
+                }
+                
+                // Raの計算 (積分)
+                let val1 = (C1 * L - C0) / 2 * (xe * xe - xs * xs);
+                let val2 = C0 * L * (xe - xs);
+                let val3 = - (C1 / 3) * (Math.pow(xe, 3) - Math.pow(xs, 3));
+                let Ra = (val1 + val2 + val3) / L;
+                
+                // せん断力最大値の確認
+                let S0 = Ra; // z=0
+                let intW = (C1 / 2) * (xe * xe - xs * xs) + C0 * (xe - xs);
+                let SL_end = Ra - intW; // z=L
+                
+                if (Math.abs(S0) > maxSL) { maxSL = Math.abs(S0); bestA_S = Math.max(0, x); }
+                if (Math.abs(SL_end) > maxSL) { maxSL = Math.abs(SL_end); bestA_S = Math.max(0, x); }
+
+                // 曲げモーメント最大値の探索
+                for (let j = 0; j <= endStep; j++) {
+                    let z = j * step;
+                    let limit = Math.min(z, xe);
+                    let M = Ra * z;
+                    if (xs < limit) {
+                        let iv1 = (C1 * z - C0) / 2 * (limit * limit - xs * xs);
+                        let iv2 = C0 * z * (limit - xs);
+                        let iv3 = - (C1 / 3) * (Math.pow(limit, 3) - Math.pow(xs, 3));
+                        M -= (iv1 + iv2 + iv3);
+                    }
+                    if (M > maxML) {
+                        maxML = M;
+                        bestA_M = x; // 実際の荷重開始位置を記録。マイナスの場合は0扱いにするか検討
+                        bestB = z;
+                    }
+                }
+            }
+            return {
+                ML: maxML,
+                SL: maxSL,
+                a: bestA_M > 0 ? bestA_M : 0, // はみ出している場合は左端は0とするのが一般的だが、図に合わせて表示を工夫
+                b: bestB
+            };
+        }
+
+        // 影響面積計算
+        function calcInfluenceArea(type, DD) {
+            let A = 0;
+            if (type === '400') {
+                if (DD >= 1000) A = 0.500;
+                else A = (DD - (DD * DD) / 2000) / 1000;
+            } else {
+                if (DD >= 500) A = 0.250;
+                else A = (DD - (DD * DD) / 1000) / 1000;
+            }
+            return A;
+        }
+
+        function performCalculation() {
+            try {
+                // 入力値取得
+                const type = document.querySelector('input[name="girderType"]:checked').value;
+                const L = parseFloat(document.getElementById('L').value);
+                const wd_self = parseFloat(document.getElementById('deadWeight').value);
+                const wd_misc = parseFloat(document.getElementById('miscWeight').value);
+                const W = parseFloat(document.getElementById('W').value);
+                const T = parseFloat(document.getElementById('T').value);
+                const LL = parseFloat(document.getElementById('LL').value) / 1000; // m変換
+                const DD = parseFloat(document.getElementById('DD').value); // mmのまま
+                const distSide = parseFloat(document.getElementById('distSide').value);
+                const distDiag = parseFloat(document.getElementById('distDiag').value);
+                const contactFront = parseFloat(document.getElementById('contactFront').value);
+                const contactDiag = parseFloat(document.getElementById('contactDiag').value);
+                const impact = parseFloat(document.getElementById('impact').value);
+                const allowFactor = parseFloat(document.getElementById('allowableFactor').value);
+                const defN = parseFloat(document.getElementById('deflectionN').value);
+                const defLimit25 = document.getElementById('deflectionLimit25').checked;
+                const LW = parseFloat(document.getElementById('LW').value);
+
+                if (isNaN(L) || L <= 0 || isNaN(W) || LL <= 0 || DD <= 0) {
+                    throw new Error("入力値に不正があります。正の数値を入力してください。");
+                }
+
+                const sec = sections[type];
+                
+                // 1. 死荷重計算
+                const wd = wd_self + wd_misc * sec.B;
+                const Md = (wd * L * L) / 8;
+                const Sd = (wd * L) / 2;
+
+                // 2. 影響面積
+                const A = calcInfluenceArea(type, DD);
+
+                // 3. 各ケースの荷重計算
+                const cases = [
+                    { id: 'run', name: '走行時', isTriangle: false, C: 1.0, dist1: 0.5, dist2: 0.5 },
+                    { id: 'side', name: '側方吊', isTriangle: false, C: 1.0, dist1: distSide, dist2: 1 - distSide },
+                    { id: 'front', name: '前方吊', isTriangle: true, C: contactFront, dist1: 0.5, dist2: 0.5 }, // isTriangle=true means dist is doubled inside
+                    { id: 'diag', name: '斜方吊', isTriangle: true, C: contactDiag, dist1: distDiag, dist2: 1 - distDiag }
+                ];
+
+                const results = [];
+                let Mmax_all = 0, Smax_all = 0;
+                let Mmax_case = "", Smax_case = "";
+                let MLmax_for_def = 0, def_case = "";
+
+                cases.forEach(c => {
+                    let pw, W1, W2, Pw1_prime, loadLen;
+                    
+                    loadLen = LL * c.C;
+
+                    if (!c.isTriangle) {
+                        // 等分布
+                        let base = (W + (c.id === 'run' ? 0 : T)) / (loadLen * (DD/1000));
+                        W1 = base * c.dist1;
+                        W2 = base * c.dist2;
+                        pw = c.id === 'run' ? W1 : Math.max(W1, W2); 
+                        Pw1_prime = pw * A;
+                    } else {
+                        // 三角形分布
+                        let base = (W + T) / (loadLen * (DD/1000)) * 2;
+                        W1 = base * c.dist1;
+                        W2 = base * c.dist2;
+                        pw = Math.max(W1, W2);
+                        Pw1_prime = pw * A;
+                    }
+
+                    // 断面力解析
+                    const f = analyzeMovingLoad(L, Pw1_prime, loadLen, c.isTriangle);
+                    
+                    const Mi = f.ML * impact;
+                    const Si = f.SL * impact;
+                    const totalM = Md + f.ML + Mi;
+                    const totalS = Sd + f.SL + Si;
+
+                    if (totalM > Mmax_all) { Mmax_all = totalM; Mmax_case = c.name; }
+                    if (totalS > Smax_all) { Smax_all = totalS; Smax_case = c.name; }
+                    if (f.ML > MLmax_for_def) { MLmax_for_def = f.ML; def_case = c.name; }
+
+                    results.push({
+                        id: c.id,
+                        name: c.name,
+                        type: c.isTriangle ? '三角形分布' : '等分布',
+                        loadLen: loadLen,
+                        w1: W1,
+                        w2: W2,
+                        pw_disp: c.id === 'run' || c.id === 'front' ? pw : `W1=${W1.toFixed(3)}, W2=${W2.toFixed(3)}`,
+                        pw_max: pw,
+                        Pw1_prime: Pw1_prime,
+                        ML: f.ML, SL: f.SL, a: f.a, b: f.b,
+                        Mi: Mi, Si: Si,
+                        M: totalM, S: totalS
+                    });
+                });
+
+                // 4. 照査計算
+                const sigmab = (Mmax_all * 1e6) / (sec.Zx * 1e3);
+                const sigmaba = 185 * allowFactor;
+                const judge_b = sigmab <= sigmaba;
+
+                const tau = (Smax_all * 1e3) / sec.Aw;
+                const taua = 105 * allowFactor;
+                const judge_s = tau <= taua;
+
+                // たわみ
+                const Ix_m4 = sec.Ix * 1e-8;
+                const delta = (5 * MLmax_for_def * L * L) / (48 * E * Ix_m4);
+                let delta_a = L / defN;
+                if (defLimit25) {
+                    delta_a = Math.min(delta_a, 0.025);
+                }
+                const judge_d = delta <= delta_a;
+
+                const isAllOk = judge_b && judge_s && judge_d;
+                
+                const typeName = type === '400' ? '桁高400mm用' : '桁高500mm用';
+
+                // データをオブジェクトにまとめる
+                calcData = {
+                    L, A, Md, Sd, results, sec, input_wd_self: wd_self, input_wd_misc: wd_misc,
+                    typeName, W, T, LL, LW, DD, distSide, distDiag, contactFront, contactDiag, impact, allowFactor, defN, defLimit25,
+                    Mmax_all, Mmax_case, sigmab, sigmaba, judge_b,
+                    Smax_all, Smax_case, tau, taua, judge_s,
+                    MLmax_for_def, def_case, delta, delta_a, judge_d,
+                    isAllOk
+                };
+
+                renderResults();
+
+            } catch (err) {
+                errorMsg.textContent = err.message;
+                errorMsg.classList.remove('hidden');
+                resultWrapper.classList.add('hidden');
+            }
+        }
+
+        function renderResults() {
+            if (!calcData) return;
+
+            // 総合判定
+            const oj = document.getElementById('overall-judgement');
+            if (calcData.isAllOk) {
+                oj.textContent = "総合判定：OK";
+                oj.className = "text-2xl font-bold px-6 py-3 rounded-md bg-green-100 text-green-800 border-2 border-green-500 shadow";
+            } else {
+                oj.textContent = "総合判定：NG";
+                oj.className = "text-2xl font-bold px-6 py-3 rounded-md bg-red-100 text-red-800 border-2 border-red-500 shadow";
+            }
+
+            // 計算条件
+            document.getElementById('res-cond-type').textContent = calcData.typeName;
+            document.getElementById('res-cond-L').textContent = calcData.L.toFixed(3);
+            document.getElementById('res-cond-deadWeight').textContent = calcData.input_wd_self.toFixed(3);
+            document.getElementById('res-cond-miscWeight').textContent = calcData.input_wd_misc.toFixed(3);
+            document.getElementById('res-cond-W').textContent = calcData.W;
+            document.getElementById('res-cond-T').textContent = calcData.T;
+            document.getElementById('res-cond-LL').textContent = (calcData.LL * 1000).toFixed(0);
+            document.getElementById('res-cond-LW').textContent = calcData.LW;
+            document.getElementById('res-cond-DD').textContent = calcData.DD;
+            document.getElementById('res-cond-impact').textContent = calcData.impact.toFixed(3);
+            document.getElementById('res-cond-dist').textContent = `${calcData.distSide} / ${calcData.distDiag}`;
+            document.getElementById('res-cond-contact').textContent = `${calcData.contactFront} / ${calcData.contactDiag}`;
+            document.getElementById('res-cond-allowFactor').textContent = calcData.allowFactor.toFixed(2);
+            document.getElementById('res-cond-defLimit').textContent = `L / ${calcData.defN} ${calcData.defLimit25 ? '(かつ25mm以下)' : ''}`;
+
+            // 1. クレーン荷重表
+            const tblLoad = document.querySelector('#tbl-crane-load tbody');
+            tblLoad.innerHTML = calcData.results.map(r => `
+                <tr>
+                    <td class="font-semibold">${r.name}</td>
+                    <td>${r.type}</td>
+                    <td>${r.loadLen.toFixed(3)}</td>
+                    <td class="text-left pl-4">${typeof r.pw_disp === 'number' ? r.pw_disp.toFixed(3) : r.pw_disp}</td>
+                </tr>
+            `).join('');
+
+            // 2. 断面性能
+            document.getElementById('res-sec-size').textContent = calcData.sec.name;
+            document.getElementById('res-sec-w').textContent = calcData.input_wd_self.toFixed(3);
+            document.getElementById('res-sec-zx').textContent = calcData.sec.Zx;
+            document.getElementById('res-sec-aw').textContent = calcData.sec.Aw;
+            document.getElementById('res-sec-ix').textContent = calcData.sec.Ix;
+
+            // 3. 影響面積
+            const tblInf = document.querySelector('#tbl-influence tbody');
+            tblInf.innerHTML = calcData.results.map(r => `
+                <tr>
+                    <td class="font-semibold">${r.name}</td>
+                    <td>${calcData.A.toFixed(3)}</td>
+                    <td>${r.Pw1_prime.toFixed(3)}</td>
+                </tr>
+            `).join('');
+
+            // 4. 断面力
+            const tblForces = document.querySelector('#tbl-forces tbody');
+            tblForces.innerHTML = calcData.results.map(r => `
+                <tr>
+                    <td class="font-semibold">${r.name}</td>
+                    <td>${calcData.Md.toFixed(2)}</td>
+                    <td>${r.ML.toFixed(2)}</td>
+                    <td>${r.Mi.toFixed(2)}</td>
+                    <td class="font-bold bg-blue-50">${r.M.toFixed(2)}</td>
+                    <td>${calcData.Sd.toFixed(2)}</td>
+                    <td>${r.SL.toFixed(2)}</td>
+                    <td>${r.Si.toFixed(2)}</td>
+                    <td class="font-bold bg-blue-50">${r.S.toFixed(2)}</td>
+                    <td>${r.a.toFixed(3)}</td>
+                    <td>${r.b.toFixed(3)}</td>
+                </tr>
+            `).join('');
+
+            // 5. 応力度
+            document.getElementById('res-mmax-case').textContent = calcData.Mmax_case;
+            document.getElementById('res-mmax').textContent = calcData.Mmax_all.toFixed(2);
+            document.getElementById('res-sigmab').textContent = calcData.sigmab.toFixed(1);
+            document.getElementById('res-sigmaba').textContent = calcData.sigmaba.toFixed(1);
+            const jb = document.getElementById('judge-bending');
+            jb.textContent = calcData.judge_b ? 'OK' : 'NG';
+            jb.className = calcData.judge_b ? 'mt-4 text-center font-bold text-lg rounded py-1 bg-green-100 text-green-700' : 'mt-4 text-center font-bold text-lg rounded py-1 bg-red-100 text-red-700';
+
+            document.getElementById('res-smax-case').textContent = calcData.Smax_case;
+            document.getElementById('res-smax').textContent = calcData.Smax_all.toFixed(2);
+            document.getElementById('res-tau').textContent = calcData.tau.toFixed(1);
+            document.getElementById('res-taua').textContent = calcData.taua.toFixed(1);
+            const js = document.getElementById('judge-shear');
+            js.textContent = calcData.judge_s ? 'OK' : 'NG';
+            js.className = calcData.judge_s ? 'mt-4 text-center font-bold text-lg rounded py-1 bg-green-100 text-green-700' : 'mt-4 text-center font-bold text-lg rounded py-1 bg-red-100 text-red-700';
+
+            // 6. たわみ
+            document.getElementById('res-def-case').textContent = calcData.def_case;
+            document.getElementById('res-def-ml').textContent = calcData.MLmax_for_def.toFixed(2);
+            document.getElementById('res-delta').textContent = calcData.delta.toFixed(3);
+            document.getElementById('res-deltaa').textContent = calcData.delta_a.toFixed(3);
+            const jd = document.getElementById('judge-deflection');
+            jd.textContent = calcData.judge_d ? 'OK' : 'NG';
+            jd.className = calcData.judge_d ? 'mt-4 text-center font-bold text-lg rounded py-1 bg-green-100 text-green-700' : 'mt-4 text-center font-bold text-lg rounded py-1 bg-red-100 text-red-700';
+
+            resultWrapper.classList.remove('hidden');
+        }
+
+        function exportPDF() {
+            const element = document.getElementById('result-container');
+            const pageBreak = element.querySelector('.html2pdf__page-break');
+            
+            // PDF出力時のみ改ページと縮小スタイルを有効化
+            pageBreak.classList.remove('hidden');
+            element.classList.add('pdf-mode');
+
+            const opt = {
+                margin:       10,
+                filename:     'PG0_応力度照査結果.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                // 出力後に元に戻す
+                pageBreak.classList.add('hidden');
+                element.classList.remove('pdf-mode');
+            });
+        }
+
+        function exportCSV() {
+            if (!calcData) return;
+            let csvContent = "\uFEFF"; // BOM for Excel
+
+            csvContent += "PG0型 H鋼桁 応力度照査結果\n\n";
+
+            csvContent += "【計算条件】\n";
+            csvContent += `桁の種類,${calcData.typeName},支間長 L (m),${calcData.L.toFixed(3)}\n`;
+            csvContent += `桁自重 (kN/m),${calcData.input_wd_self.toFixed(3)},雑荷重 (kN/m2),${calcData.input_wd_misc.toFixed(3)}\n`;
+            csvContent += `車両重量 W (kN),${calcData.W},吊荷重 T (kN),${calcData.T}\n`;
+            csvContent += `車両長 LL (mm),${(calcData.LL * 1000).toFixed(0)},車両幅 LW (mm),${calcData.LW}\n`;
+            csvContent += `クローラ幅 DD (mm),${calcData.DD},衝撃係数 i,${calcData.impact.toFixed(3)}\n`;
+            csvContent += `分配係数(側方/斜方),${calcData.distSide},${calcData.distDiag},接地係数(前方/斜方),${calcData.contactFront},${calcData.contactDiag}\n`;
+            csvContent += `許容割増係数,${calcData.allowFactor.toFixed(2)},たわみ許容値設定,L/${calcData.defN} ${calcData.defLimit25 ? '(かつ25mm以下)' : ''}\n\n`;
+
+            // 1.
+            csvContent += "1. クローラクレーンによる積載荷重\n";
+            csvContent += "ケース,荷重分布形状,接地長(m),シュー荷重(1),シュー荷重(2)\n";
+            calcData.results.forEach(r => {
+                if (r.id === 'run' || r.id === 'front') {
+                    csvContent += `${r.name},${r.type},${r.loadLen.toFixed(3)},${r.pw_max.toFixed(3)}\n`;
+                } else {
+                    csvContent += `${r.name},${r.type},${r.loadLen.toFixed(3)},${r.w1.toFixed(3)},${r.w2.toFixed(3)}\n`;
+                }
+            });
+            csvContent += "\n";
+
+            // 2.
+            csvContent += "2. H形鋼 断面性能\n";
+            csvContent += `種類・サイズ,${calcData.sec.name},単位重量(kN/m),${calcData.input_wd_self.toFixed(3)}\n`;
+            csvContent += `断面係数Zx(cm3),${calcData.sec.Zx},せん断有効断面積Aw(mm2),${calcData.sec.Aw}\n`;
+            csvContent += `断面二次モーメントIx(cm4),${calcData.sec.Ix},弾性係数E(kN/m2),2.00E+08\n\n`;
+
+            // 3.
+            csvContent += "3. 桁1本への影響面積と作用荷重\n";
+            csvContent += "ケース,影響面積A(m),桁1本に作用する荷重Pw1'(kN/m)\n";
+            calcData.results.forEach(r => {
+                csvContent += `${r.name},${calcData.A.toFixed(3)},${r.Pw1_prime.toFixed(3)}\n`;
+            });
+            csvContent += "\n";
+
+            // 4.
+            csvContent += "4. 各ケースの断面力計算結果\n";
+            csvContent += "ケース,Md(kNm),ML(kNm),Mi(kNm),合計M(kNm),Sd(kN),SL(kN),Si(kN),合計S(kN),載荷位置a(m),算出位置b(m)\n";
+            calcData.results.forEach(r => {
+                csvContent += `${r.name},${calcData.Md.toFixed(2)},${r.ML.toFixed(2)},${r.Mi.toFixed(2)},${r.M.toFixed(2)},${calcData.Sd.toFixed(2)},${r.SL.toFixed(2)},${r.Si.toFixed(2)},${r.S.toFixed(2)},${r.a.toFixed(3)},${r.b.toFixed(3)}\n`;
+            });
+            csvContent += "\n";
+
+            // 5.
+            csvContent += "5. 照査結果\n";
+            csvContent += "【曲げ応力度】\n";
+            csvContent += `最大ケース,${calcData.Mmax_case}\n`;
+            csvContent += `Mmax(kNm),${calcData.Mmax_all.toFixed(2)}\n`;
+            csvContent += `発生応力度σb(N/mm2),${calcData.sigmab.toFixed(1)},許容値σba,${calcData.sigmaba.toFixed(1)},判定,${calcData.judge_b ? 'OK' : 'NG'}\n\n`;
+
+            csvContent += "【せん断応力度】\n";
+            csvContent += `最大ケース,${calcData.Smax_case}\n`;
+            csvContent += `Smax(kN),${calcData.Smax_all.toFixed(2)}\n`;
+            csvContent += `発生応力度τ(N/mm2),${calcData.tau.toFixed(1)},許容値τa,${calcData.taua.toFixed(1)},判定,${calcData.judge_s ? 'OK' : 'NG'}\n\n`;
+
+            csvContent += "【たわみ】\n";
+            csvContent += `最大ケース,${calcData.def_case}\n`;
+            csvContent += `ML(kNm),${calcData.MLmax_for_def.toFixed(2)}\n`;
+            csvContent += `発生たわみδmax(m),${calcData.delta.toFixed(3)},許容値δa(m),${calcData.delta_a.toFixed(3)},判定,${calcData.judge_d ? 'OK' : 'NG'}\n`;
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "PG0_応力度照査結果.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
